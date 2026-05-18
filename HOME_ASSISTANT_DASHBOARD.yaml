@@ -18,7 +18,7 @@ sections:
           - entity: binary_sensor.flo_home_x6_en_charge
           - entity: binary_sensor.flo_home_x6_cable_branche
       - type: tile
-        entity: switch.flo_home_x6_block_schedule
+        entity: switch.flo_home_x6_charge_lock
         name: Charge Lock
         icon: mdi:lock
   - type: grid
