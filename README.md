@@ -23,12 +23,13 @@ Polls the Flo cloud API and publishes real-time charging data using Home Assista
 
 ## Features
 
-- **Auto-discovery**: 24 entities appear automatically in Home Assistant on first run
+- **Auto-discovery**: 25 entities appear automatically in Home Assistant on first run
 - **Real-time data**: current (A), voltage (V), power (W), energy (kWh), cost ($)
 - **Smart polling**: 30s while charging, 60s plugged in, 120s when idle
 - **Availability management**: entities go `unavailable` in HA when internet or Flo cloud is unreachable
 - **Auto-reconnect**: recovers automatically from MQTT broker or internet outages
 - **Start/Stop charging**: control your charger directly from Home Assistant
+- **Charge Lock**: hardware-level charge blocking via the Flo schedule system (guaranteed 0 Wh)
 - **Bridge diagnostics**: monitor internet, Flo cloud, and bridge health from HA
 
 ## Entities
@@ -203,6 +204,49 @@ To add each automation:
 4. Update `notify.mobile_app_nicholass_iphone_14` to match **your** notification service
 
 > To find your notification service: **Settings → Devices & Services → Mobile App** → your device name
+
+---
+
+## Charge Lock — Hardware-Level Charge Blocking
+
+The **Charge Lock** feature blocks charging at the charger hardware level using the Flo schedule system. When locked, the charger itself refuses to charge — **guaranteed 0 Wh**, even if the bridge goes offline or someone tries to start charging from the Flo app.
+
+Use cases:
+- **Hydro-Québec critical peak periods** — add the Charge Lock switch to your existing peak-period automations
+- **Vacation / security mode** — prevent anyone from using your charger while you're away
+
+### ⚠️ Required setup (one-time, in the Flo app)
+
+> **You must do this before using Charge Lock.** The bridge only controls the schedule ON/OFF toggle — it does not create the schedule.
+
+1. Open the **Flo app** on your phone
+2. Go to your charger settings → **Schedule**
+3. Create a new schedule with these settings:
+   - **All days** (Monday through Sunday)
+   - **All hours** (00:00 to 23:59 / full day)
+   - **Power output: 0A** (no charging)
+   - Date range: **January 1 — December 31**
+4. Leave the schedule **disabled** (toggle OFF) — this is the normal state
+5. Save
+
+Once this is done, the **Charge Lock** switch in Home Assistant controls the schedule ON/OFF:
+- **Charge Lock ON** → schedule enabled → charger blocks all charging (hardware level)
+- **Charge Lock OFF** → schedule disabled → normal charging operation
+
+### Automating Charge Lock
+
+Example — Hydro-Québec peak period automation:
+```yaml
+# When peak period starts → lock charging
+- service: switch.turn_on
+  target:
+    entity_id: switch.flo_home_x6_block_schedule
+
+# When peak period ends → unlock charging
+- service: switch.turn_off
+  target:
+    entity_id: switch.flo_home_x6_block_schedule
+```
 
 ---
 
