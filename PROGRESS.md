@@ -138,7 +138,35 @@ Démarré : 2026-05-15
 - [ ] B9  — docker restart → vérifier tokens persistés, reprise sans re-auth
 - [ ] B10 — kill -9 le daemon → vérifier LWT publie "offline" dans HA automatiquement
 
-## PHASE 6 — Packaging Docker & GitHub ⏳ À FAIRE
+## PHASE 6 — Packaging Docker & GitHub ✅ TERMINÉE
+
+- [x] Dockerfile (python:3.11-slim, iputils-ping inclus)
+- [x] docker-compose.yml (tests locaux)
+- [x] .dockerignore
+- [x] .gitignore
+- [x] README.md complet
+- [x] Repo GitHub : github.com/saxophone-k/flo-x6-mqtt
+- [x] GitHub Actions : build amd64+arm64, push ghcr.io sur chaque push main
+- [x] Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest
+
+## PHASE 7 — Custom App TrueNAS SCALE ✅ TERMINÉE
+
+- [x] Image ghcr.io/saxophone-k/flo-x6-mqtt:latest déployée
+- [x] Variables d'environnement configurées
+- [x] Volume persistant /app/data (ixVolume)
+- [x] Container Running, données visibles dans HA
+
+## PHASE 6 — Packaging Docker & GitHub ✅ TERMINÉE (voir ci-dessus)
+
+## PHASE 8 — Intégration Home Assistant ✅ TERMINÉE
+
+- [x] Onglet Energy HA (Session Energy ajouté comme Individual device)
+- [x] Dashboard Lovelace — 4 sections : Status, Live Session, History, Connectivity
+- [x] Bouton Start/Stop conditionnel (apparaît seulement si câble branché)
+- [x] Graphique historique puissance/ampérage (2h)
+- [x] Graphique énergie par jour (7 jours)
+- [x] Section Connectivity avec EVSE, Internet, Flo Cloud, EVSE Error
+- [x] HOME_ASSISTANT_DASHBOARD.yaml sauvegardé dans le repo
 
 ## PHASE 7 — Custom App TrueNAS SCALE ⏳ À FAIRE
 

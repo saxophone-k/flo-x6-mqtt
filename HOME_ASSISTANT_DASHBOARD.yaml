@@ -1,0 +1,142 @@
+type: sections
+max_columns: 4
+title: EV Charger
+path: ev-charger
+icon: mdi:ev-plug-type1
+subview: true
+cards: []
+sections:
+  - type: grid
+    cards:
+      - type: heading
+        heading: Status
+      - type: glance
+        show_name: false
+        show_icon: true
+        show_state: true
+        entities:
+          - entity: binary_sensor.flo_home_x6_en_charge
+          - entity: binary_sensor.flo_home_x6_cable_branche
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.flo_home_x6_cable_branche
+            state: "on"
+          - condition: state
+            entity: binary_sensor.flo_home_x6_en_charge
+            state: "on"
+        card:
+          type: button
+          entity: switch.flo_home_x6_charge
+          name: Stop Charge
+          icon: mdi:stop-circle-outline
+          tap_action:
+            action: call-service
+            service: switch.turn_off
+            target:
+              entity_id: switch.flo_home_x6_charge
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: binary_sensor.flo_home_x6_cable_branche
+            state: "on"
+          - condition: state
+            entity: binary_sensor.flo_home_x6_en_charge
+            state: "off"
+        card:
+          type: button
+          entity: switch.flo_home_x6_charge
+          name: Start Charge
+          icon: mdi:play-circle-outline
+          tap_action:
+            action: call-service
+            service: switch.turn_on
+            target:
+              entity_id: switch.flo_home_x6_charge
+  - type: grid
+    cards:
+      - type: heading
+        heading: Live Session
+      - type: gauge
+        entity: sensor.flo_home_x6_puissance
+        name: Power
+        unit: W
+        min: 0
+        max: 11520
+        needle: true
+        segments:
+          - from: 0
+            color: "#9e9e9e"
+          - from: 100
+            color: "#44739e"
+          - from: 7000
+            color: "#39bd39"
+          - from: 10000
+            color: "#e8a400"
+      - type: entities
+        entities:
+          - entity: sensor.flo_home_x6_etat_session
+            name: State
+          - entity: sensor.flo_home_x6_amperage
+            name: Current
+          - entity: sensor.flo_home_x6_amperage_offert
+            name: Current Offered
+          - entity: sensor.flo_home_x6_tension
+            name: Voltage
+          - entity: sensor.flo_home_x6_energie_session
+            name: Energy
+          - entity: sensor.flo_home_x6_duree_session
+            name: Duration
+          - entity: sensor.flo_home_x6_cout_session
+            name: Cost
+  - type: grid
+    cards:
+      - type: heading
+        heading: History
+      - type: history-graph
+        title: Power & Current (2h)
+        hours_to_show: 2
+        refresh_interval: 30
+        entities:
+          - entity: sensor.flo_home_x6_puissance
+            name: Power (W)
+          - entity: sensor.flo_home_x6_amperage
+            name: Current (A)
+      - type: statistics-graph
+        title: Daily Energy (7 days)
+        period: day
+        days_to_show: 7
+        chart_type: bar
+        stat_types:
+          - change
+        entities:
+          - entity: sensor.flo_home_x6_energie_session
+            name: kWh
+  - type: grid
+    cards:
+      - type: heading
+        heading: Connectivity
+        heading_style: title
+      - type: glance
+        show_name: true
+        show_icon: true
+        show_state: true
+        entities:
+          - entity: binary_sensor.flo_home_x6_borne_connectee
+            name: EVSE
+          - entity: binary_sensor.flo_home_x6_bridge_internet
+            name: Internet
+          - entity: binary_sensor.flo_home_x6_bridge_cloud_flo
+            name: Flo Cloud
+          - entity: binary_sensor.flo_home_x6_erreur_borne
+            name: EVSE Error
+      - type: entities
+        entities:
+          - entity: sensor.flo_home_x6_bridge_derniere_maj
+            name: Last Update
+          - entity: sensor.flo_home_x6_bridge_erreurs_consecutives
+            name: Consecutive Errors
+          - entity: sensor.flo_home_x6_bridge_derniere_erreur
+            name: Last Error
+          - entity: sensor.flo_home_x6_statut_evse
+            name: EVSE Status
