@@ -153,3 +153,7 @@ action:
         Charger reported an error.
         Status: {{ states('sensor.flo_home_x6_statut_evse') }}
         Check the charger or the Flo app.
+
+# NOTE : Les automatisations #8 et #9 (input_boolean.ev_charge_allowed) ont été
+# supprimées — remplacées par le switch "Charge Lock" (hardware, via schedule Flo).
+# Pour bloquer la charge, utiliser directement switch.flo_home_x6_charge_lock.
