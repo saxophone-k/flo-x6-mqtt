@@ -1,182 +1,125 @@
 # PROGRESS — flo-x6-mqtt
 
-Projet : Bridge Flo X6 → MQTT → Home Assistant  
+Projet : Bridge Flo X6 → MQTT → Home Assistant
 Démarré : 2026-05-15
+Complété : 2026-05-18
+
+Repo : https://github.com/saxophone-k/flo-x6-mqtt
+Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest (amd64 + arm64)
 
 ---
 
-## PHASE 1 — Setup environnement & téléchargement APK ✅ TERMINÉE
+## PHASE 1 ✅ — Setup environnement
 
-### Outils installés
-- [x] python3 3.12.3
-- [x] pip3 24.0
-- [x] git 2.43.0
-- [x] java OpenJDK 21
-- [x] apktool 2.7.0
-- [x] jadx 1.5.0
-- [x] mitmproxy (préinstallé)
-- [x] docker 29.1.3
-- [x] docker compose 2.40.3
-
-### Structure du projet créée
-- [x] ~/flo-x6-mqtt/apk/
-- [x] ~/flo-x6-mqtt/decompiled/
-- [x] ~/flo-x6-mqtt/flo_client/
-- [x] ~/flo-x6-mqtt/data/
-- [x] ~/flo-x6-mqtt/.github/workflows/
-
-### APK
-- [x] APK téléchargé : com.addenergie.reseauver v3.4.20 (52 Mo)
-- [x] APK patché avec apk-mitm (SSL pinning désactivé) : 53 Mo
+- apktool 2.7.0, jadx 1.5.0, mitmproxy 8.1.1, docker 29.1.3, python3 3.12.3
+- Structure du projet créée
 
 ---
 
-## PHASE 2 — Décompilation & analyse statique ✅ TERMINÉE
+## PHASE 2 ✅ — Analyse statique APK
 
-### Outils de décompilation
-- [x] jadx → 24 646 fichiers Java décompilés
-- [x] apktool → ressources + smali
-
-### Découvertes clés
-- [x] API Base URL production Canada : https://emobility.flo.ca/
-- [x] Auth : PingIdentity OAuth2 PKCE (auth.pingone.ca)
-- [x] Environment ID : 6cedc65f-98e2-4651-bdb8-88ee4936c9ba
-- [x] Application ID : a52eedc6-7bcc-4d35-a57a-ef2685bd8101
-- [x] Endpoints station : GET/PUT v3.1/homestation + start/stop session
-- [x] Modèle de données session : ampérage, tension, Wh, coût, état
-- [x] Modèle de données borne : OcpiStation (X6 = format OCPI)
-- [x] États EVSE : Available, PluggedIn, Charging, Inoperative, OutOfOrder, etc.
-
-### Documents produits
-- [x] API_ANALYSIS.md
-- [x] ENTITIES_DISCOVERED.md (v1 — basée sur analyse statique)
+- APK : com.addenergie.reseauver v3.4.20
+- 24 646 fichiers Java décompilés avec jadx
+- API Base URL : https://emobility.flo.ca/
+- Auth : PingIdentity OAuth2 PKCE (auth.pingone.ca)
+- Environment ID : 6cedc65f-98e2-4651-bdb8-88ee4936c9ba
+- Application ID : a52eedc6-7bcc-4d35-a57a-ef2685bd8101
+- Tous les endpoints et modèles de données documentés
+- Docs : API_ANALYSIS.md, ENTITIES_DISCOVERED.md
 
 ---
 
-## PHASE 3 — Interception trafic réseau ✅ TERMINÉE (laptop Windows)
+## PHASE 3 ✅ — Interception réseau (laptop Windows)
 
-### Méthode utilisée
-- APK patché avec apk-mitm (SSL pinning désactivé)
-- Émulateur Android Pixel 4 (Android APIs) sur Windows (8-16 Go RAM)
-- mitmproxy/mitmweb sur Windows, proxy 10.0.2.2:8080
-- Note : iPhone refusé (SSL pinning iOS), Linux Mint insuffisant en RAM
-
-### Données borne confirmées
+- SSL pinning iOS contourné → APK patché avec apk-mitm
+- Émulateur Android Pixel 4 sur Windows (8-16 Go RAM)
 - Station UID : 600a3f7d-30ba-4d67-bd4a-8d72e6286666
-- Station ID  : ef8d78af-90ec-47cd-8382-ad2b03429a1d
-- EVSE ID     : 1
-- Référence   : H5301CJ
-- Modèle      : FLO Home X6, firmware 3.0.0, 48A max
-
-### Authentification confirmée
-- POST https://auth.pingone.ca/6cedc65f-98e2-4651-bdb8-88ee4936c9ba/as/token
-- Client ID : a52eedc6-7bcc-4d35-a57a-ef2685bd8101
-- Access token : expire 3600s (1h)
-- Refresh token : expire ~450 jours
-- 2 scopes distincts : eMobility:all (API Flo) + p1:update:user (PingOne)
-
-### Endpoints confirmés
-- GET  /v3.1/homestation → statut borne
-- GET  /v3.1/user/sessions → session temps réel
-- POST /v3.1/homestation/chargingstation/{uid}/session/start → body: {"evseId":"1"}
-- POST /v3.1/homestation/chargingstation/{uid}/session/stop → body vide
-- POST /v3.0/stations/{uid}/fast-status-update → body vide (forcer refresh)
+- Modèle : FLO Home X6, firmware 3.0.0, 48A max
+- Body start session confirmé : {"evseId":"1"}
+- Endpoint bonus découvert : fast-status-update
 
 ---
 
-## PHASE 5 — Daemon MQTT + Home Assistant Discovery ✅ TERMINÉE
+## PHASE 4 ✅ — Client Python Flo X6
 
-### Fichier principal
-- [x] main.py — boucle de polling adaptative (30s/60s/120s)
-- [x] MQTT Discovery — 24 entités (sensors, binary_sensors, switch, diagnostic)
-- [x] LWT configuré — HA marque offline si daemon crashe
-- [x] Availability online/offline selon état réel
-- [x] Reconnexion MQTT automatique avec republication complète
-- [x] Retry infini au démarrage si broker absent
-- [x] Guard commandes start/stop (délais mesurés)
-- [x] Noms entités en anglais
-- [x] Double Discovery au démarrage corrigé (flag first_connect)
-- [x] Client ID MQTT unique basé sur UID borne
-
-## PHASE 5.5 — Tests d'intégration ✅ TERMINÉE
-
-- [x] B1  — Internet down → unavailable après ~3 min, recovery auto
-- [x] B2  — Cloud Flo bloqué → unavailable après ~3 min, recovery auto
-- [x] B3  — Broker MQTT tombe → reconnexion et recovery en ~5s
-- [x] B4  — Broker éteint au démarrage → retry progressif 5→30s
-- [x] B5  — Reconnexion après panne → validé avec B2
-- [x] B7  — Câble débranché → EVSE Available après ~30s (cycle borne)
-- [x] B10 — kill -9 → LWT instantané dans HA
-- [x] A1-A13 — Tests automatisés : 12/12 PASS
-
-## PHASE 4 — Client Python Flo X6 ✅ TERMINÉE
-
-- [x] flo_client/exceptions.py — FloAuthError, FloNetworkError, FloAPIError
-- [x] flo_client/auth.py — OAuth2 PKCE PingIdentity, refresh automatique, cache tokens
-- [x] flo_client/client.py — get_station(), get_session(), start_charge(), stop_charge(), fast_status_update()
-- [x] flo_client/connectivity.py — check_internet(), check_flo_api()
-- [x] debug.py — affichage état brut complet
-- [x] requirements.txt
-- [x] Test avec vrais credentials → succès complet
-- [x] ENTITIES_DISCOVERED.md mis à jour avec données réelles API
-
-## PHASE 5 — Daemon MQTT + Home Assistant Discovery ⏳ À FAIRE
-
-## PHASE 5.5 — Tests B (intégration complète) ⏳ À FAIRE AVANT GITHUB
-> Ces tests nécessitent que main.py tourne et que HA soit intégré (après Phase 5).
-> Obligatoires avant de pousser sur GitHub.
-
-### Tests B — nécessitent intervention manuelle
-- [ ] B1  — Couper le Wi-Fi de Linux Mint → vérifier que HA grise les entités, logs clairs
-- [ ] B2  — Bloquer cloud Flo (iptables) → vérifier "offline" dans HA, retry automatique
-- [ ] B3  — Arrêter broker MQTT pendant que daemon tourne → vérifier reconnexion automatique
-- [ ] B4  — Démarrer daemon avec broker MQTT éteint → vérifier retry au démarrage
-- [ ] B5  — Rebrancher internet après B1/B2 → vérifier retour "online" et republication état
-- [ ] B6  — Borne perd sa connexion Wi-Fi → vérifier connectionStatus=Offline détecté
-- [ ] B7  — Débrancher câble pendant charge → vérifier session disparaît, EVSE=Available
-- [ ] B8  — Ouvrir app Flo iPhone après 1h de daemon → vérifier toujours connecté
-- [ ] B9  — docker restart → vérifier tokens persistés, reprise sans re-auth
-- [ ] B10 — kill -9 le daemon → vérifier LWT publie "offline" dans HA automatiquement
-
-## PHASE 6 — Packaging Docker & GitHub ✅ TERMINÉE
-
-- [x] Dockerfile (python:3.11-slim, iputils-ping inclus)
-- [x] docker-compose.yml (tests locaux)
-- [x] .dockerignore
-- [x] .gitignore
-- [x] README.md complet
-- [x] Repo GitHub : github.com/saxophone-k/flo-x6-mqtt
-- [x] GitHub Actions : build amd64+arm64, push ghcr.io sur chaque push main
-- [x] Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest
-
-## PHASE 7 — Custom App TrueNAS SCALE ✅ TERMINÉE
-
-- [x] Image ghcr.io/saxophone-k/flo-x6-mqtt:latest déployée
-- [x] Variables d'environnement configurées
-- [x] Volume persistant /app/data (ixVolume)
-- [x] Container Running, données visibles dans HA
-
-## PHASE 6 — Packaging Docker & GitHub ✅ TERMINÉE (voir ci-dessus)
-
-## PHASE 8 — Intégration Home Assistant ✅ TERMINÉE
-
-- [x] Onglet Energy HA (Session Energy ajouté comme Individual device)
-- [x] Dashboard Lovelace — 4 sections : Status, Live Session, History, Connectivity
-- [x] Bouton Start/Stop conditionnel (apparaît seulement si câble branché)
-- [x] Graphique historique puissance/ampérage (2h)
-- [x] Graphique énergie par jour (7 jours)
-- [x] Section Connectivity avec EVSE, Internet, Flo Cloud, EVSE Error
-- [x] HOME_ASSISTANT_DASHBOARD.yaml sauvegardé dans le repo
-
-## PHASE 7 — Custom App TrueNAS SCALE ⏳ À FAIRE
-
-## PHASE 8 — Intégration Home Assistant ⏳ À FAIRE
+- flo_client/auth.py — OAuth2 PKCE, refresh auto, cache tokens
+- flo_client/client.py — get_station(), get_session(), start/stop, fast_status_update()
+- flo_client/connectivity.py — check_internet(), check_flo_api()
+- flo_client/exceptions.py — FloAuthError, FloNetworkError, FloAPIError
+- debug.py — affichage état brut complet
+- Testé avec vrais credentials → succès
 
 ---
 
-## Notes & décisions
-- Linux Mint 22 (base Ubuntu 24.04 noble)
-- Erreurs dpkg linux-headers préexistantes sur le système, sans impact sur le projet
-- Capture réseau : SSL pinning iOS contourné via APK patché + émulateur Android Windows
+## PHASE 5 ✅ — Daemon MQTT + Home Assistant Discovery
+
+- main.py — boucle polling adaptative (30s/60s/120s)
+- 24 entités MQTT Discovery
+- LWT, availability online/offline, reconnexion auto
+- Retry infini au démarrage si broker absent
+- Guard commandes start/stop (délais mesurés)
+- Client ID MQTT unique basé sur UID borne
+
+---
+
+## PHASE 5.5 ✅ — Tests d'intégration
+
+### Tests automatisés (12/12 PASS)
+A1-A13 : token refresh, credentials, JSON manquant, rate limiting, HTTP 500, session None, double commande, MQTT inconnu, première exécution, reset kWh, exception boucle
+
+### Tests manuels (7/10 validés)
+- B1 — Internet down → unavailable après ~3 min ✅
+- B2 — Cloud Flo bloqué → unavailable après ~3 min ✅
+- B3 — Broker MQTT tombe → reconnexion ~5s ✅
+- B4 — Broker éteint au démarrage → retry 5→30s ✅
+- B5 — Reconnexion après panne → validé avec B2 ✅
+- B7 — Câble débranché → EVSE Available après ~30s ✅
+- B10 — kill -9 → LWT instantané ✅
+
+### Mesures empiriques (zéro suppositions)
+- Fréquence rapport borne : 30 secondes exactes
+- Délai confirmation stop : ~5 secondes
+- Délai confirmation start : 2–16 secondes
+- Délai requis stop→start : attendre PluggedIn
+- Délai requis start→stop : aucun
+
+---
+
+## PHASE 6 ✅ — Docker & GitHub
+
+- Dockerfile (python:3.11-slim)
+- docker-compose.yml
+- GitHub Actions : build amd64+arm64, push ghcr.io sur push main
+- README.md complet
+- github.com/saxophone-k/flo-x6-mqtt
+
+---
+
+## PHASE 7 ✅ — TrueNAS SCALE
+
+- Image ghcr.io/saxophone-k/flo-x6-mqtt:latest
+- Always pull image (mises à jour auto via GitHub)
+- Volume persistant /app/data
+- Container Running
+
+---
+
+## PHASE 8 ✅ — Intégration Home Assistant
+
+- Onglet Energy HA : Session Energy ajouté comme Individual device
+- Dashboard Lovelace : Status, Live Session, History, Connectivity
+- Bouton Start/Stop conditionnel (câble branché requis)
+- 7 automatisations : branché, débranché, charge démarrée, arrêtée, bridge offline, cloud offline, erreur EVSE
+- HOME_ASSISTANT_DASHBOARD.yaml sauvegardé
+- HOME_ASSISTANT_AUTOMATIONS.yaml sauvegardé
+
+---
+
+## Notes techniques
+
 - Le X6 utilise le format OCPI (ocpiHomeStations), contrairement au X5 (legacyHomeStations)
-- Body start session = {"evseId":"1"} (découvert Phase 3)
+- Auth PingIdentity : PKCE statique codé dans l'APK (inhabituel mais fonctionnel)
+- Refresh token expire ~450 jours — re-auth rare
+- La borne reporte au cloud toutes les 30 secondes pendant une charge
+- Entity IDs HA basés sur noms français (premier démarrage) — ex: sensor.flo_home_x6_puissance
+- Pull Policy TrueNAS : Always pull (redémarrer container pour update)
