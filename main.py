@@ -100,8 +100,10 @@ def topics(uid: str) -> dict:
     base = f"flo/{uid}"
     return {
         "availability":   f"{base}/availability",
-        "command_charge": f"{base}/switch/charge/command",
-        "state_charge":   f"{base}/switch/charge/state",
+        "command_charge":         f"{base}/switch/charge/command",
+        "state_charge":           f"{base}/switch/charge/state",
+        "command_block_schedule": f"{base}/switch/block_schedule/command",
+        "state_block_schedule":   f"{base}/switch/block_schedule/state",
         # Sensors
         "evse_status":        f"{base}/sensor/evse_status/state",
         "amperage":           f"{base}/sensor/amperage/state",
@@ -189,6 +191,27 @@ def publish_discovery(mqttc: mqtt.Client, station: dict):
     dev = device_info(station)
 
     configs = []
+
+    # Switch Charge Lock (schedule isEnabled toggle)
+    obj_id = f"flo_{uid}_block_schedule"
+    configs.append((
+        f"homeassistant/switch/{obj_id}/config",
+        {
+            "unique_id":             obj_id,
+            "name":                  "Charge Lock",
+            "state_topic":           T["state_block_schedule"],
+            "command_topic":         T["command_block_schedule"],
+            "payload_on":            "LOCK",
+            "payload_off":           "UNLOCK",
+            "state_on":              "ON",
+            "state_off":             "OFF",
+            "availability_topic":    T["availability"],
+            "payload_available":     "online",
+            "payload_not_available": "offline",
+            "icon":                  "mdi:lock",
+            "device":                dev,
+        }
+    ))
 
     # Switch charge on/off
     obj_id = f"flo_{uid}_charge"
@@ -355,6 +378,11 @@ def publish_state(mqttc: mqtt.Client, station: dict, session):
     pub(mqttc, T["state_charge"],
         "ON" if evse_st == "Charging" else "OFF", retain=True)
 
+    # Switch Charge Lock — état isEnabled du schedule
+    schedule_enabled = station.get("schedule", {}).get("isEnabled", False)
+    pub(mqttc, T["state_block_schedule"],
+        "ON" if schedule_enabled else "OFF", retain=True)
+
     # --- Session ---
     if session:
         sid = session.get("id")
@@ -476,7 +504,8 @@ def on_connect(mqttc, userdata, connect_flags, reason_code, properties):
         log.info("Connecté au broker MQTT %s:%s", MQTT_HOST, MQTT_PORT)
         if state.get("station_uid"):
             mqttc.subscribe(T["command_charge"], qos=1)
-            log.info("Abonné à %s", T["command_charge"])
+            mqttc.subscribe(T["command_block_schedule"], qos=1)
+            log.info("Abonné aux commandes charge et block_schedule.")
             # Republier availability immédiatement sans attendre le prochain poll
             if state.get("bridge_online"):
                 mqttc.publish(T["availability"], "online", retain=True, qos=1)
@@ -494,8 +523,43 @@ def on_disconnect(mqttc, userdata, disconnect_flags, reason_code, properties):
     if reason_code != 0:
         log.warning("Déconnecté du broker MQTT (code %s) — reconnexion auto...", reason_code)
 
+def on_command_block_schedule(mqttc, userdata, msg):
+    payload = msg.payload.decode("utf-8").strip().upper()
+    uid     = state.get("station_uid")
+    log.info("Commande block_schedule reçue : '%s'", payload)
+
+    if payload not in ("LOCK", "UNLOCK"):
+        log.warning("Commande block_schedule inconnue ignorée : '%s'", payload)
+        return
+
+    if not state["bridge_online"]:
+        log.warning("Commande ignorée — bridge hors ligne.")
+        return
+
+    if not uid:
+        log.error("Commande ignorée — UID borne non disponible.")
+        return
+
+    tokens = load_tokens()
+    if not tokens:
+        log.error("Commande ignorée — pas de token disponible.")
+        return
+
+    client  = FloX6Client(tokens["access_token"], timeout=API_TIMEOUT)
+    enabled = payload == "LOCK"
+
+    ok = client.set_schedule_enabled(uid, enabled)
+    if ok:
+        pub(mqttc, T["state_block_schedule"], "ON" if enabled else "OFF", retain=True)
+    else:
+        log.error("Échec set_schedule_enabled.")
+
+
 def on_message(mqttc, userdata, msg):
-    on_command(mqttc, userdata, msg)
+    if T and msg.topic == T.get("command_charge"):
+        on_command(mqttc, userdata, msg)
+    elif T and msg.topic == T.get("command_block_schedule"):
+        on_command_block_schedule(mqttc, userdata, msg)
 
 # ─────────────────────────────────────────────────────────────
 # Setup MQTT
@@ -588,6 +652,7 @@ def run():
     # Publier discovery et s'abonner aux commandes
     publish_discovery(mqttc, station)
     mqttc.subscribe(T["command_charge"], qos=1)
+    mqttc.subscribe(T["command_block_schedule"], qos=1)
 
     # ── Gestion arrêt propre ────────────────────────────────
     def shutdown(sig, frame):

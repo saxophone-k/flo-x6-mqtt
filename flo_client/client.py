@@ -111,6 +111,30 @@ class FloX6Client:
             logger.error("Erreur stop_charge : %s", e)
             return False
 
+    def get_schedule(self, station_uid: str) -> dict:
+        """Retourne le schedule actuel de la borne."""
+        return self._get(f"/v3.1/homestation/{station_uid}/schedule")
+
+    def set_schedule_enabled(self, station_uid: str, enabled: bool) -> bool:
+        """
+        Active ou désactive le schedule (toggle isEnabled).
+
+        Pré-requis : l'utilisateur doit avoir créé dans l'app Flo un schedule
+        24h/24 365 jours avec powerOutput=0 pour que ce toggle bloque la charge.
+
+        enabled=True  → schedule actif → charge bloquée (si configuré en 0W)
+        enabled=False → schedule inactif → charge normale
+        """
+        try:
+            schedule = self.get_schedule(station_uid)
+            schedule["isEnabled"] = enabled
+            self._put(f"/v3.1/homestation/{station_uid}/schedule", body=schedule)
+            logger.info("Schedule %s.", "activé (charge bloquée)" if enabled else "désactivé (charge normale)")
+            return True
+        except (FloNetworkError, FloAPIError) as e:
+            logger.error("Erreur set_schedule_enabled : %s", e)
+            return False
+
     def fast_status_update(self, station_uid: str) -> bool:
         """
         Force la borne à remonter immédiatement son statut au cloud.
@@ -140,6 +164,20 @@ class FloX6Client:
             raise FloNetworkError(f"Timeout sur GET {path}")
         except requests.ConnectionError as e:
             raise FloNetworkError(f"Erreur connexion sur GET {path} : {e}")
+
+    def _put(self, path: str, body: dict) -> any:
+        """Effectue un PUT avec un body JSON et retourne le JSON décodé (si présent)."""
+        url = f"{_API_BASE}{path}"
+        try:
+            resp = self._session.put(url, json=body, timeout=self._timeout)
+            self._handle_response(resp, url)
+            if resp.content:
+                return resp.json()
+            return None
+        except requests.Timeout:
+            raise FloNetworkError(f"Timeout sur PUT {path}")
+        except requests.ConnectionError as e:
+            raise FloNetworkError(f"Erreur connexion sur PUT {path} : {e}")
 
     def _post(self, path: str, body: dict) -> any:
         """Effectue un POST avec un body JSON et retourne le JSON décodé (si présent)."""
