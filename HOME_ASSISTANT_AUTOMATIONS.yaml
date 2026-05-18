@@ -1,0 +1,155 @@
+# Automatisations Flo X6 — à ajouter une par une dans HA
+# Settings → Automations → + Create Automation → trois points → Edit in YAML
+
+# ─────────────────────────────────────────────────────────────
+# 1. Véhicule branché
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Vehicle Plugged In"
+description: Notification quand le câble est branché
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_cable_branche
+    to: "on"
+condition: []
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "🔌 EV Charger"
+      message: "Vehicle plugged in."
+
+---
+# ─────────────────────────────────────────────────────────────
+# 2. Véhicule débranché (inclut info session si charge en cours)
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Vehicle Unplugged"
+description: >
+  Notification quand le câble est débranché.
+  Si une session était active, affiche énergie/coût.
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_cable_branche
+    to: "off"
+condition: []
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "🔌 EV Charger"
+      message: >
+        {% set energy = states('sensor.flo_home_x6_energie_session') | float(0) %}
+        {% set cost = states('sensor.flo_home_x6_cout_session') | float(0) %}
+        {% set duration = states('sensor.flo_home_x6_duree_session') | float(0) %}
+        {% if energy > 0.05 %}
+        Charging interrupted — vehicle unplugged.
+        Energy: {{ energy }} kWh | Cost: ${{ cost }} | Duration: {{ duration | int }} min
+        {% else %}
+        Vehicle unplugged.
+        {% endif %}
+
+---
+# ─────────────────────────────────────────────────────────────
+# 3. Charge démarrée
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Charging Started"
+description: Notification quand la charge démarre
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_en_charge
+    to: "on"
+condition: []
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "⚡ EV Charger"
+      message: >
+        Charging started at
+        {{ states('sensor.flo_home_x6_amperage') }} A /
+        {{ states('sensor.flo_home_x6_tension') }} V
+        ({{ (states('sensor.flo_home_x6_amperage') | float *
+            states('sensor.flo_home_x6_tension') | float / 1000) | round(1) }} kW)
+
+---
+# ─────────────────────────────────────────────────────────────
+# 4. Charge terminée (câble encore branché = arrêt manuel ou auto)
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Charging Stopped"
+description: Notification quand la charge s'arrête (véhicule encore branché)
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_en_charge
+    to: "off"
+    for: "00:00:10"
+condition:
+  - condition: state
+    entity_id: binary_sensor.flo_home_x6_cable_branche
+    state: "on"
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "✅ EV Charger"
+      message: >
+        Charging stopped.
+        Energy: {{ states('sensor.flo_home_x6_energie_session') }} kWh |
+        Cost: ${{ states('sensor.flo_home_x6_cout_session') }} |
+        Duration: {{ states('sensor.flo_home_x6_duree_session') }} min
+
+---
+# ─────────────────────────────────────────────────────────────
+# 5. Bridge hors ligne (internet down)
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Bridge Offline"
+description: Alerte quand le bridge perd internet
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_bridge_internet
+    to: "off"
+    for: "00:03:00"
+condition: []
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "⚠️ EV Charger — Bridge Offline"
+      message: >
+        Bridge has lost internet connectivity.
+        Last successful update:
+        {{ states('sensor.flo_home_x6_bridge_derniere_maj') }}
+
+---
+# ─────────────────────────────────────────────────────────────
+# 6. Cloud Flo inaccessible
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — Flo Cloud Unreachable"
+description: Alerte quand le cloud Flo est inaccessible
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_bridge_cloud_flo
+    to: "off"
+    for: "00:03:00"
+condition:
+  - condition: state
+    entity_id: binary_sensor.flo_home_x6_bridge_internet
+    state: "on"
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "⚠️ EV Charger — Flo Cloud Down"
+      message: "Flo API is unreachable. Internet is up — issue is on Flo's side."
+
+---
+# ─────────────────────────────────────────────────────────────
+# 7. Erreur EVSE
+# ─────────────────────────────────────────────────────────────
+alias: "Flo X6 — EVSE Error"
+description: Alerte si la borne signale une panne matérielle
+trigger:
+  - platform: state
+    entity_id: binary_sensor.flo_home_x6_erreur_borne
+    to: "on"
+condition: []
+action:
+  - service: notify.mobile_app_nicholass_iphone_14
+    data:
+      title: "🚨 EV Charger — EVSE Error"
+      message: >
+        Charger reported an error.
+        Status: {{ states('sensor.flo_home_x6_statut_evse') }}
+        Check the charger or the Flo app.
