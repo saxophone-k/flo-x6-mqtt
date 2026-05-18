@@ -1,0 +1,11 @@
+.env
+data/
+apk/
+decompiled/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.DS_Store
+test_*.py
+debug.py

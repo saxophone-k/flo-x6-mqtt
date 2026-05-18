@@ -1,0 +1,11 @@
+.env
+data/
+apk/
+decompiled/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+test_*.py
+debug.py
+*.md
