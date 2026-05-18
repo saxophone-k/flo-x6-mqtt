@@ -43,7 +43,7 @@ Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest (amd64 + arm64)
 ## PHASE 4 ✅ — Client Python Flo X6
 
 - flo_client/auth.py — OAuth2 PKCE, refresh auto, cache tokens
-- flo_client/client.py — get_station(), get_session(), start/stop, fast_status_update()
+- flo_client/client.py — get_station(), get_session(), start_charge(), stop_charge(), get_schedule(), set_schedule_enabled()
 - flo_client/connectivity.py — check_internet(), check_flo_api()
 - flo_client/exceptions.py — FloAuthError, FloNetworkError, FloAPIError
 - debug.py — affichage état brut complet
@@ -54,11 +54,12 @@ Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest (amd64 + arm64)
 ## PHASE 5 ✅ — Daemon MQTT + Home Assistant Discovery
 
 - main.py — boucle polling adaptative (30s/60s/120s)
-- 24 entités MQTT Discovery
+- 25 entités MQTT Discovery (sensors, binary_sensors, switches, diagnostic)
 - LWT, availability online/offline, reconnexion auto
 - Retry infini au démarrage si broker absent
 - Guard commandes start/stop (délais mesurés)
 - Client ID MQTT unique basé sur UID borne
+- Switch Charge Lock (schedule toggle hardware)
 
 ---
 
@@ -90,7 +91,7 @@ A1-A13 : token refresh, credentials, JSON manquant, rate limiting, HTTP 500, ses
 - Dockerfile (python:3.11-slim)
 - docker-compose.yml
 - GitHub Actions : build amd64+arm64, push ghcr.io sur push main
-- README.md complet
+- README.md complet avec instructions TrueNAS, HAOS, Charge Lock
 - github.com/saxophone-k/flo-x6-mqtt
 
 ---
@@ -109,9 +110,21 @@ A1-A13 : token refresh, credentials, JSON manquant, rate limiting, HTTP 500, ses
 - Onglet Energy HA : Session Energy ajouté comme Individual device
 - Dashboard Lovelace : Status, Live Session, History, Connectivity
 - Bouton Start/Stop conditionnel (câble branché requis)
+- Charge Lock tile dans Status (toggle schedule Flo)
 - 7 automatisations : branché, débranché, charge démarrée, arrêtée, bridge offline, cloud offline, erreur EVSE
 - HOME_ASSISTANT_DASHBOARD.yaml sauvegardé
-- HOME_ASSISTANT_AUTOMATIONS.yaml sauvegardé
+- HOME_ASSISTANT_AUTOMATIONS.yaml sauvegardé (7 automations actives)
+
+---
+
+## FEATURE POST-LANCEMENT ✅ — Charge Lock
+
+- Blocage hardware via toggle schedule Flo (isEnabled ON/OFF)
+- Garantie 0 Wh — borne refuse de charger au niveau matériel
+- Fonctionne même si bridge offline
+- Usages : périodes de pointe utilité, mode vacances/sécurité
+- Pré-requis : créer schedule 24h/24 365j powerOutput=0 dans l'app Flo
+- Testé et validé : toggle HA ↔ schedule app Flo dans les deux directions
 
 ---
 
@@ -122,4 +135,6 @@ A1-A13 : token refresh, credentials, JSON manquant, rate limiting, HTTP 500, ses
 - Refresh token expire ~450 jours — re-auth rare
 - La borne reporte au cloud toutes les 30 secondes pendant une charge
 - Entity IDs HA basés sur noms français (premier démarrage) — ex: sensor.flo_home_x6_puissance
+- Charge Lock entity ID : switch.flo_home_x6_charge_lock
 - Pull Policy TrueNAS : Always pull (redémarrer container pour update)
+- input_boolean.ev_charge_allowed supprimé — remplacé par Charge Lock (hardware)
