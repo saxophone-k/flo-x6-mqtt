@@ -21,6 +21,8 @@ sections:
         entity: switch.flo_home_x6_charge_lock
         name: Charge Lock
         icon: mdi:lock
+        vertical: false
+        features_position: bottom
   - type: grid
     cards:
       - type: heading
