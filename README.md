@@ -212,7 +212,7 @@ To add each automation:
 The **Charge Lock** feature blocks charging at the charger hardware level using the Flo schedule system. When locked, the charger itself refuses to charge — **guaranteed 0 Wh**, even if the bridge goes offline or someone tries to start charging from the Flo app.
 
 Use cases:
-- **Hydro-Québec critical peak periods** — add the Charge Lock switch to your existing peak-period automations
+- **Utility critical peak periods** — block charging during high-rate periods (e.g. time-of-use pricing, demand response events notified by your utility)
 - **Vacation / security mode** — prevent anyone from using your charger while you're away
 
 ### ⚠️ Required setup (one-time, in the Flo app)
@@ -235,7 +235,7 @@ Once this is done, the **Charge Lock** switch in Home Assistant controls the sch
 
 ### Automating Charge Lock
 
-Example — Hydro-Québec peak period automation:
+Example — utility peak period automation:
 ```yaml
 # When peak period starts → lock charging
 - service: switch.turn_on
