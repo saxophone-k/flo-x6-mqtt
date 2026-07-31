@@ -476,25 +476,32 @@ def on_command(mqttc, userdata, msg):
 
     client = FloX6Client(tokens["access_token"], timeout=API_TIMEOUT)
 
-    if payload == "START":
-        log.info("Démarrage de la charge...")
-        ok = client.start_charge(uid, evse_id="1")
-        if ok:
-            # Verrouiller 40s : start prend jusqu'à 16s + marge
-            state["command_lock_until"] = time.time() + 40
-            log.info("start_charge accepté. Verrou 40s.")
-        else:
-            log.error("start_charge échoué.")
+    try:
+        if payload == "START":
+            log.info("Démarrage de la charge...")
+            ok = client.start_charge(uid, evse_id="1")
+            if ok:
+                # Verrouiller 40s : start prend jusqu'à 16s + marge
+                state["command_lock_until"] = time.time() + 40
+                log.info("start_charge accepté. Verrou 40s.")
+            else:
+                log.error("start_charge échoué.")
 
-    elif payload == "STOP":
-        log.info("Arrêt de la charge...")
-        ok = client.stop_charge(uid)
-        if ok:
-            # Verrouiller 30s : stop prend ~5s, mais on bloque start 30s (sécurité)
-            state["command_lock_until"] = time.time() + 30
-            log.info("stop_charge accepté. Verrou 30s.")
-        else:
-            log.error("stop_charge échoué.")
+        elif payload == "STOP":
+            log.info("Arrêt de la charge...")
+            ok = client.stop_charge(uid)
+            if ok:
+                # Verrouiller 30s : stop prend ~5s, mais on bloque start 30s (sécurité)
+                state["command_lock_until"] = time.time() + 30
+                log.info("stop_charge accepté. Verrou 30s.")
+            else:
+                log.error("stop_charge échoué.")
+    except (FloAuthError, FloAPIError, FloNetworkError) as e:
+        # Ne jamais laisser une exception remonter dans le thread réseau MQTT
+        # (paho tue le thread silencieusement — plus aucune donnée publiée ensuite).
+        log.error("Commande '%s' échouée : %s", payload, e)
+    except Exception as e:
+        log.error("Commande '%s' échouée (erreur inattendue) : %s: %s", payload, type(e).__name__, e)
 
 # ─────────────────────────────────────────────────────────────
 # Callbacks MQTT
@@ -548,11 +555,18 @@ def on_command_block_schedule(mqttc, userdata, msg):
     client  = FloX6Client(tokens["access_token"], timeout=API_TIMEOUT)
     enabled = payload == "LOCK"
 
-    ok = client.set_schedule_enabled(uid, enabled)
-    if ok:
-        pub(mqttc, T["state_block_schedule"], "ON" if enabled else "OFF", retain=True)
-    else:
-        log.error("Échec set_schedule_enabled.")
+    try:
+        ok = client.set_schedule_enabled(uid, enabled)
+        if ok:
+            pub(mqttc, T["state_block_schedule"], "ON" if enabled else "OFF", retain=True)
+        else:
+            log.error("Échec set_schedule_enabled.")
+    except (FloAuthError, FloAPIError, FloNetworkError) as e:
+        # Ne jamais laisser une exception remonter dans le thread réseau MQTT
+        # (paho tue le thread silencieusement — plus aucune donnée publiée ensuite).
+        log.error("set_schedule_enabled('%s') échoué : %s", payload, e)
+    except Exception as e:
+        log.error("set_schedule_enabled('%s') échoué (erreur inattendue) : %s: %s", payload, type(e).__name__, e)
 
 
 def on_message(mqttc, userdata, msg):
