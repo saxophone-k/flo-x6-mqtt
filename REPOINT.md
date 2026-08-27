@@ -1,88 +1,83 @@
 # Repointing the charger to your local server
 
 One-time, ~10 minutes, no soldering. You change the charger's **OCPP server URL** from FLO's
-cloud to your bridge, using the charger's own setup API (the same one the FLO app uses).
+cloud to your own bridge, using the charger's built-in setup Wi-Fi (the same thing the FLO app
+uses). It's reversible — re-pair with the FLO app to restore the cloud config.
 
-> Do this on hardware you own. It's reversible (re-pair with the FLO app restores the cloud
-> config). Have the bridge already running first, so the charger has something to connect to.
+**Before you start:**
+- Have the **bridge already running** and note the **IP address** of the machine running it
+  (e.g. `192.168.1.50`).
+- Have the charger's **setup Wi-Fi password** — printed on the pairing card/QR from the box.
+  **Lost it?** FLO support can give you the setup Wi-Fi name + password for your serial.
 
-## 0. What you need
+---
 
-- The bridge deployed and listening on `ws://<host>:9000` (your host's LAN IP).
-- The charger's **setup Wi-Fi credentials** (the `AP_FLO_xxxx` network's name + WPA2 password).
-  These are printed on the **pairing card / QR** from the box. **Lost it?** FLO support can give
-  you the setup Wi-Fi SSID + password for your serial — just ask.
-- A laptop/phone that can join the charger's setup Wi-Fi and run `curl` (or any HTTP tool).
+## The easy way — the guided helper (recommended)
 
-## 1. Put the charger in setup (AP) mode
+Run **`repoint_tool.py`** and just follow the prompts — it walks you through putting the charger
+in setup mode and joining its Wi-Fi, then does the rest with confirmations and clear error
+messages. No commands to type.
 
-Press and **hold the connector button ~10 seconds** until the connectivity light changes.
-Depending on firmware the light goes **orange, then blinks** — wait until it settles/steady and
-the setup Wi-Fi `AP_FLO_xxxx` is broadcasting. (If it goes red, it's not in AP mode — re-do the
-hold.)
+```bash
+python repoint_tool.py
+```
+*(No dependencies — any Python 3 works. A double-click packaged version may be attached to the
+[Releases](../../releases) page.)*
 
-## 2. Join the charger's setup Wi-Fi
+That's it. When it finishes, the charger reconnects to your Wi-Fi and shows up in Home Assistant.
 
-From your laptop, connect Wi-Fi to **`AP_FLO_xxxx`** using the password from the card / FLO. You
-get an IP like `192.168.9.x`; the charger is at **`192.168.9.1`**.
+---
 
-> Tip: keep a *wired* connection to your normal LAN at the same time (so you don't lose internet
-> / access to the bridge). The two interfaces coexist.
+## The manual way (advanced / no Python)
 
-## 3. Read the current config (safe, no changes)
+If you'd rather do it by hand with `curl` (or any HTTP tool):
 
+**1. Setup mode** — press and **hold the connector button ~10s** until the connectivity light
+changes (orange/blinking); wait until the setup Wi-Fi `AP_FLO_xxxx` appears. (Red = not in AP
+mode; re-do the hold.)
+
+**2. Join** your laptop's Wi-Fi to **`AP_FLO_xxxx`** (password from the card/FLO). The charger is
+at **`192.168.9.1`**. *(Tip: a wired LAN connection can stay up alongside so you keep internet.)*
+
+**3. Read the current config** (safe):
 ```bash
 curl http://192.168.9.1/onboarding/ocpp_status
 curl http://192.168.9.1/onboarding/wifi_status
 ```
-`ocpp_status` shows the current cloud URL + username; `wifi_status` shows the home Wi-Fi it's on.
-(The charger ignores ICMP — `ping` won't work, but HTTP does.)
+*(The charger ignores `ping`; use HTTP.)*
 
-## 4. Point it at your bridge
-
-**⚠ The body is snake_case.** camelCase returns HTTP 422.
-
+**4. Point it at your bridge** — ⚠ **body is snake_case** (camelCase returns HTTP 422):
 ```bash
 curl -X PUT http://192.168.9.1/onboarding/ocpp_configuration \
   -H 'Content-Type: application/json' \
   -d '{"ocpp_url":"ws://<HOST-IP>:9000/flo","ocpp_username":"flo","ocpp_password":"flo"}'
 ```
-- `<HOST-IP>` = the LAN IP of the machine running the bridge (e.g. `192.168.107.100`).
-- `ocpp_username` / `ocpp_password` can be anything — the bridge accepts any charge point.
-- The path segment (`/flo`) becomes the charge-point id in the bridge logs; pick anything.
+`<HOST-IP>` = the bridge machine's LAN IP. Username/password can be anything (the bridge accepts
+any charge point). The `/flo` path becomes the charge-point id in the logs — pick anything.
 
-Optional — if you want the charger to also switch home Wi-Fi (usually leave it as-is):
+**5. Verify then finalize:**
 ```bash
-curl -X PUT http://192.168.9.1/onboarding/wifi_configuration \
-  -H 'Content-Type: application/json' \
-  -d '{"wifi_ssid":"YourSSID","wifi_password":"YourPass"}'
-```
-
-Verify it took (should now show your URL and `status` moving to `CONNECTED`):
-```bash
-curl http://192.168.9.1/onboarding/ocpp_status
-```
-
-## 5. Finalize
-
-```bash
+curl http://192.168.9.1/onboarding/ocpp_status   # should show your URL, status CONNECTED
 curl -X POST http://192.168.9.1/onboarding/exit
 ```
-The charger leaves AP mode and rejoins your normal Wi-Fi, now talking to your bridge.
 
-## 6. Confirm
+---
 
-In Home Assistant the "Flo Home X6" device entities should come alive (Status `Available`, then
-telemetry when you plug in). Bridge container logs show `Charger connected: /flo`.
+## Confirm it worked
+
+In Home Assistant the "Flo Home X6" device comes alive (Status `Available`, telemetry when you
+plug in). Bridge container logs show `Charger connected: /flo`.
 
 ## Revert to FLO cloud
 
-Re-pair the charger with the **FLO app** (using the same setup Wi-Fi creds) — it re-provisions
-the original cloud OCPP config from FLO. (We overwrite `ocpp_url/username/password`, so there's
-no one-command undo; re-pairing is the clean restore.)
+Re-pair the charger with the **FLO app** (using the setup Wi-Fi creds) — it re-provisions the
+original cloud OCPP config. (We overwrite the OCPP fields, so re-pairing is the clean restore;
+there's no one-command undo.)
 
 ## Notes / gotchas
 
-- `/onboarding/*` is served **only in AP mode** — on the charger's normal LAN IP it returns 502.
+- `/onboarding/*` is served **only in setup (AP) mode** — on the charger's normal LAN IP it
+  returns 502.
 - The charger accepts plain **`ws://`** (no TLS needed).
-- After WAN-blocking, expect a **slow reconnect** on the next restart — see the README.
+- After WAN-blocking, expect a **slow reconnect** the next time the bridge restarts after a long
+  outage — see the README's WAN-block note.
