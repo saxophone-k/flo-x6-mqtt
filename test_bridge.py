@@ -57,6 +57,15 @@ async def main():
         results.append(check("session energy tracks", bridge.state.session_energy_wh == 95.0))
         results.append(check("total energy = meter", bridge.state.total_energy_wh == 1187624 + 95))
 
+        # poka-yoke: a malformed meter value must be skipped, not crash the handler
+        await sim.call(sim_flo.call.MeterValues(connector_id=1, transaction_id=1, meter_value=[{
+            "timestamp": "2026-08-27T18:00:00Z", "sampled_value": [
+                {"value": "NOT_A_NUMBER", "measurand": "Current.Import", "unit": "A"},
+                {"value": "241.0", "measurand": "Voltage", "unit": "V"}]}]))
+        await asyncio.sleep(0.3)
+        results.append(check("survives malformed meter value (good value still parsed)",
+                             bridge.state.voltage_v == 241.0))
+
         # control: HA "stop" -> RemoteStopTransaction reaches charger
         bridge._handle_command("stop", "stop")
         await asyncio.sleep(0.3)

@@ -94,8 +94,11 @@ class MqttPublisher:
         self.client.will_set(f"{self._base}/availability", "offline", retain=True)
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
-        # keepalive 30s -> broker fires the Last Will within ~45s of an abrupt bridge death
-        self.client.connect(self.cfg.MQTT_HOST, self.cfg.MQTT_PORT, 30)
+        self.client.reconnect_delay_set(min_delay=1, max_delay=60)
+        # connect_async + loop_start: never blocks and never crashes if the broker is down
+        # at boot — paho keeps retrying, and on_connect (re)publishes discovery each time.
+        # keepalive 30s -> broker fires the Last Will within ~45s of an abrupt bridge death.
+        self.client.connect_async(self.cfg.MQTT_HOST, self.cfg.MQTT_PORT, 30)
         self.client.loop_start()
 
     def _on_connect(self, client, userdata, flags, rc):
@@ -184,9 +187,13 @@ class FloChargePoint(CP):
             log.info("StartTransaction refused — Charge Lock ON")
             return call_result.StartTransaction(
                 transaction_id=0, id_tag_info={"status": AuthorizationStatus.blocked})
+        try:
+            ms = float(meter_start)
+        except (TypeError, ValueError):
+            ms = 0.0
         s.transaction_id = 1
-        s._meter_start = float(meter_start)
-        s.total_energy_wh = float(meter_start)
+        s._meter_start = ms
+        s.total_energy_wh = ms
         s.session_energy_wh = 0.0
         log.info(f"StartTransaction meterStart={meter_start}")
         self._pub()
@@ -196,9 +203,13 @@ class FloChargePoint(CP):
     @on(Action.stop_transaction)
     async def on_stop(self, meter_stop, timestamp, transaction_id, **kw):
         s = self.bridge.state
-        s.total_energy_wh = float(meter_stop)
-        if s._meter_start is not None:
-            s.session_energy_wh = float(meter_stop) - s._meter_start
+        try:
+            mstop = float(meter_stop)
+            s.total_energy_wh = mstop
+            if s._meter_start is not None:
+                s.session_energy_wh = mstop - s._meter_start
+        except (TypeError, ValueError):
+            pass
         s.transaction_id = None
         s.power_w = 0.0
         s.current_a = 0.0
@@ -236,13 +247,19 @@ class FloChargePoint(CP):
 
     # --- commands from HA (called on the asyncio loop) ---
     async def remote_start(self):
-        r = await self.call(call.RemoteStartTransaction(id_tag="HA0000000000"))
-        log.info(f"RemoteStart -> {r.status}")
+        try:
+            r = await self.call(call.RemoteStartTransaction(id_tag="HA0000000000"))
+            log.info(f"RemoteStart -> {r.status}")
+        except Exception as e:
+            log.warning(f"RemoteStart failed (charger unreachable?): {e}")
 
     async def remote_stop(self):
-        tid = self.bridge.state.transaction_id or 1
-        r = await self.call(call.RemoteStopTransaction(transaction_id=tid))
-        log.info(f"RemoteStop(tx={tid}) -> {r.status}")
+        try:
+            tid = self.bridge.state.transaction_id or 1
+            r = await self.call(call.RemoteStopTransaction(transaction_id=tid))
+            log.info(f"RemoteStop(tx={tid}) -> {r.status}")
+        except Exception as e:
+            log.warning(f"RemoteStop failed (charger unreachable?): {e}")
 
 
 class Bridge:
@@ -260,13 +277,15 @@ class Bridge:
             s.charge_lock = (payload.strip().lower() in ("true", "on", "1"))
             log.info(f"Charge Lock -> {s.charge_lock}")
             # If locking mid-session, stop the active transaction too.
-            if s.charge_lock and self.cp and s.transaction_id:
+            if s.charge_lock and self.cp and s.connected and s.transaction_id:
                 self._schedule(self.cp.remote_stop())
             self.mqtt.publish_state(s)
-        elif cmd == "start" and self.cp:
+        elif cmd == "start" and self.cp and s.connected:
             self._schedule(self.cp.remote_start())
-        elif cmd == "stop" and self.cp:
+        elif cmd == "stop" and self.cp and s.connected:
             self._schedule(self.cp.remote_stop())
+        elif cmd in ("start", "stop"):
+            log.warning(f"Ignoring '{cmd}' — charger not connected")
 
     def _schedule(self, coro):
         if self.loop:
@@ -285,29 +304,37 @@ class Bridge:
         """If the charger goes silent past STALE_AFTER, flag it offline in HA."""
         while True:
             await asyncio.sleep(20)
-            s = self.state
-            if s.connected and (time.monotonic() - s._last_seen_mono) > STALE_AFTER:
-                log.warning("Charger silent > %ss — marking Offline", STALE_AFTER)
-                s.connected = False
-                s.status = "Offline"
-                self.mqtt.publish_charger_avail(False)  # -> telemetry goes UNAVAILABLE in HA
-                self.mqtt.publish_state(s)
+            try:
+                s = self.state
+                if s.connected and (time.monotonic() - s._last_seen_mono) > STALE_AFTER:
+                    log.warning("Charger silent > %ss — marking Offline", STALE_AFTER)
+                    s.connected = False
+                    s.status = "Offline"
+                    self.mqtt.publish_charger_avail(False)  # -> telemetry UNAVAILABLE in HA
+                    self.mqtt.publish_state(s)
+            except Exception as e:  # never let the safety net die
+                log.warning(f"watchdog error (continuing): {e}")
 
     async def _on_connect(self, websocket):
         path = websocket.request.path
         cp_id = path.strip("/") or "flo"
         log.info(f"Charger connected: {cp_id}")
-        self.cp = FloChargePoint(cp_id, websocket, self)
+        cp = FloChargePoint(cp_id, websocket, self)
+        self.cp = cp
         self.touch_seen()
         self.mqtt.publish_state(self.state)
         try:
-            await self.cp.start()
-        except websockets.exceptions.ConnectionClosed:
-            log.info("Charger disconnected")
-            self.state.connected = False
-            self.state.status = "Offline"
-            self.mqtt.publish_charger_avail(False)  # -> telemetry goes UNAVAILABLE in HA
-            self.mqtt.publish_state(self.state)
+            await cp.start()
+        except Exception as e:
+            log.info(f"Charger connection ended: {e}")
+        finally:
+            # Only mark offline if a *newer* connection hasn't already replaced us —
+            # otherwise a fast charger reconnect would leave HA stuck "offline".
+            if self.cp is cp:
+                self.state.connected = False
+                self.state.status = "Offline"
+                self.mqtt.publish_charger_avail(False)  # -> telemetry UNAVAILABLE in HA
+                self.mqtt.publish_state(self.state)
 
     async def run(self):
         logging.basicConfig(level=getattr(logging, self.cfg.LOG_LEVEL, logging.INFO),
