@@ -7,5 +7,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 .DS_Store
-test_*.py
-debug.py
+*.log
+*_venv/
+venv/
