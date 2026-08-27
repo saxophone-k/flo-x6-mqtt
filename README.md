@@ -21,9 +21,28 @@ controllable from HA, with nothing leaving your LAN.
 
 > ## Disclaimer
 > This is an independent, reverse-engineered project. **Not affiliated with or endorsed by FLO /
-> AddÉnergie.** It uses the charger's own local setup API (the same one the FLO app uses) to
-> point the charger at your own OCPP server. Use on hardware you own. A future FLO firmware update
-> could change the setup API. No warranty.
+> AddÉnergie.** Use on hardware you own. No warranty.
+
+## Why this is possible (and the honest caveat)
+
+This is **not** a crack of FLO's cloud security — that part is genuinely solid (mutual-TLS with a
+per-device certificate we can't extract). Instead, it works thanks to a **small open door FLO
+left in the charger's setup procedure.**
+
+When the charger is in Wi-Fi pairing (AP) mode, it serves a **plain, unauthenticated local
+config API** (`http://192.168.9.1/onboarding/…`) — the very same one the FLO app uses to set
+your home Wi-Fi and register the charger. One of the values that API writes is the charger's
+**OCPP server URL**, and FLO left that field wide open: no login, no signed config, no locked-in
+address. So we simply **join the setup Wi-Fi and write our own server's address** where FLO's
+cloud URL used to be. We're not breaking in — we walk through the same door FLO uses itself, and
+the charger happily reports to us instead. The charger even accepts a plain `ws://` OCPP URL, so
+there's nothing to defeat.
+
+> ⚠ **Because this depends on that open door, a future FLO firmware update could close it** — by
+> adding authentication to the setup API, signing the config, or hardcoding the server URL.
+> If that happens, **chargers already repointed keep working**, but new repoints might not, and
+> a forced firmware update could in principle undo an existing one. Blocking the charger's
+> internet access (the WAN-block step) is what protects an existing setup from that.
 
 ---
 
