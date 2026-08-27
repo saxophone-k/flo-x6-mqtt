@@ -76,12 +76,14 @@ class MqttPublisher:
         self.on_command = on_command  # callable(cmd_name, payload)
         self.client = None
         self._base = ha_entities.base_topic(cfg)
+        self._charger_avail_topic = ha_entities.charger_avail_topic(cfg)
 
     def connect(self):
         if self.cfg.DRY_RUN or mqtt is None:
             log.info("MQTT DRY_RUN — publishes will be logged, not sent")
             self._publish_discovery()
             self.publish_availability("online")
+            self.publish_charger_avail(False)   # charger not connected yet
             return
         try:  # paho-mqtt 2.x requires an explicit callback API version; keep v1 signatures
             self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
@@ -92,7 +94,8 @@ class MqttPublisher:
         self.client.will_set(f"{self._base}/availability", "offline", retain=True)
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
-        self.client.connect(self.cfg.MQTT_HOST, self.cfg.MQTT_PORT, 60)
+        # keepalive 30s -> broker fires the Last Will within ~45s of an abrupt bridge death
+        self.client.connect(self.cfg.MQTT_HOST, self.cfg.MQTT_PORT, 30)
         self.client.loop_start()
 
     def _on_connect(self, client, userdata, flags, rc):
@@ -100,6 +103,11 @@ class MqttPublisher:
         self._publish_discovery()
         client.subscribe(f"{self._base}/cmd/#")
         self.publish_availability("online")
+        # Fail safe: assume charger offline on (re)connect; the next heartbeat flips it online.
+        self.publish_charger_avail(False)
+
+    def publish_charger_avail(self, online):
+        self._raw(self._charger_avail_topic, "online" if online else "offline", retain=True)
 
     def _on_message(self, client, userdata, msg):
         cmd = msg.topic.rsplit("/", 1)[-1]
@@ -266,9 +274,12 @@ class Bridge:
 
     def touch_seen(self):
         """Mark the charger as alive (called on every inbound OCPP message)."""
+        was = self.state.connected
         self.state.connected = True
         self.state.last_seen = _now()
         self.state._last_seen_mono = time.monotonic()
+        if not was:  # transition offline->online: flip HA availability
+            self.mqtt.publish_charger_avail(True)
 
     async def _watchdog(self):
         """If the charger goes silent past STALE_AFTER, flag it offline in HA."""
@@ -279,6 +290,7 @@ class Bridge:
                 log.warning("Charger silent > %ss — marking Offline", STALE_AFTER)
                 s.connected = False
                 s.status = "Offline"
+                self.mqtt.publish_charger_avail(False)  # -> telemetry goes UNAVAILABLE in HA
                 self.mqtt.publish_state(s)
 
     async def _on_connect(self, websocket):
@@ -294,6 +306,7 @@ class Bridge:
             log.info("Charger disconnected")
             self.state.connected = False
             self.state.status = "Offline"
+            self.mqtt.publish_charger_avail(False)  # -> telemetry goes UNAVAILABLE in HA
             self.mqtt.publish_state(self.state)
 
     async def run(self):
