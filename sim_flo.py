@@ -30,6 +30,17 @@ class SimCharger(CP):
         self.remote_stopped = True
         return call_result.RemoteStopTransaction(status=RemoteStartStopStatus.accepted)
 
+    @on(Action.get_configuration)
+    async def on_get_config(self, key=None, **kw):
+        return call_result.GetConfiguration(configuration_key=[
+            {"key": "WebSocketPingInterval", "readonly": False, "value": "300"},
+            {"key": "HeartbeatInterval", "readonly": False, "value": "30"}], unknown_key=[])
+
+    @on(Action.change_configuration)
+    async def on_change_config(self, key, value, **kw):
+        self.last_change = (key, value)
+        return call_result.ChangeConfiguration(status="Accepted")
+
     async def _st(self, status, connector=1):
         await self.call(call.StatusNotification(connector_id=connector, error_code=NOERR, status=status))
 

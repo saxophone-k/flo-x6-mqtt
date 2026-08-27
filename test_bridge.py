@@ -81,6 +81,13 @@ async def main():
         results.append(check("status Available after unplug", bridge.state.status == "Available"))
         results.append(check("session energy final 95Wh", bridge.state.session_energy_wh == 95.0))
 
+        # diagnostics: set_config reaches the charger with the right key/value
+        sim.last_change = None
+        bridge._handle_command("set_config", "WebSocketPingInterval=30")
+        await asyncio.sleep(0.3)
+        results.append(check("set_config delivered to charger",
+                             sim.last_change == ("WebSocketPingInterval", "30")))
+
         # control: charge lock ON -> next StartTransaction is refused (Blocked)
         bridge._handle_command("charge_lock", "true")
         await asyncio.sleep(0.1)

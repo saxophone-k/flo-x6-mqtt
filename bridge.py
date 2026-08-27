@@ -135,6 +135,10 @@ class MqttPublisher:
     def publish_availability(self, val):
         self._raw(f"{self._base}/availability", val, retain=True)
 
+    def publish_config(self, keys, unknown):
+        self._raw(f"{self._base}/config",
+                  json.dumps({"configuration_key": keys, "unknown_key": unknown}), retain=True)
+
 
 class FloChargePoint(CP):
     """Handles the OCPP conversation for one connected charger."""
@@ -261,6 +265,26 @@ class FloChargePoint(CP):
         except Exception as e:
             log.warning(f"RemoteStop failed (charger unreachable?): {e}")
 
+    async def remote_get_config(self):
+        """Read all OCPP config keys off the charger -> log + publish to MQTT (diagnostics)."""
+        try:
+            r = await self.call(call.GetConfiguration(key=[]))
+            keys = getattr(r, "configuration_key", None) or []
+            log.info(f"GetConfiguration: {len(keys)} keys")
+            for k in keys:
+                log.info(f"  cfg {k.get('key')} = {k.get('value')} (ro={k.get('readonly')})")
+            self.bridge.mqtt.publish_config(keys, getattr(r, "unknown_key", None) or [])
+        except Exception as e:
+            log.warning(f"GetConfiguration failed: {e}")
+
+    async def remote_set_config(self, key, value):
+        """Set one OCPP config key on the charger (e.g. reconnect/ping tuning)."""
+        try:
+            r = await self.call(call.ChangeConfiguration(key=key, value=value))
+            log.info(f"ChangeConfiguration {key}={value} -> {r.status}")
+        except Exception as e:
+            log.warning(f"ChangeConfiguration failed: {e}")
+
 
 class Bridge:
     def __init__(self, cfg):
@@ -284,7 +308,12 @@ class Bridge:
             self._schedule(self.cp.remote_start())
         elif cmd == "stop" and self.cp and s.connected:
             self._schedule(self.cp.remote_stop())
-        elif cmd in ("start", "stop"):
+        elif cmd == "get_config" and self.cp and s.connected:      # diagnostics
+            self._schedule(self.cp.remote_get_config())
+        elif cmd == "set_config" and self.cp and s.connected and "=" in payload:
+            k, v = payload.split("=", 1)
+            self._schedule(self.cp.remote_set_config(k.strip(), v.strip()))
+        elif cmd in ("start", "stop", "get_config", "set_config"):
             log.warning(f"Ignoring '{cmd}' — charger not connected")
 
     def _schedule(self, coro):
