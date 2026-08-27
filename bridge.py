@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import datetime
+import time
 
 import websockets
 from ocpp.v16 import ChargePoint as CP, call, call_result
@@ -30,6 +31,8 @@ def _now():
 
 
 PLUGGED_STATES = {"Preparing", "Charging", "SuspendedEV", "SuspendedEVSE", "Finishing"}
+# If the charger goes silent longer than this (3 missed 30s heartbeats), call it offline.
+STALE_AFTER = 95
 
 
 class State:
@@ -45,6 +48,9 @@ class State:
         self._meter_start = None
         self.charge_lock = False
         self.transaction_id = None
+        self.connected = False          # charger's OCPP link (heartbeat-driven)
+        self.last_seen = None           # ISO time of last OCPP message
+        self._last_seen_mono = 0.0      # monotonic, for the staleness watchdog
 
     def as_json(self):
         return json.dumps({
@@ -58,6 +64,8 @@ class State:
             "plugged": str(self.status in PLUGGED_STATES).lower(),
             "charging": str(self.status == "Charging").lower(),
             "charge_lock": str(self.charge_lock).lower(),
+            "connected": str(self.connected).lower(),
+            "last_seen": self.last_seen,
         })
 
 
@@ -111,7 +119,7 @@ class MqttPublisher:
             self.client.publish(topic, payload, retain=retain)
 
     def publish_state(self, state):
-        self._raw(f"{self._base}/state", state.as_json())
+        self._raw(f"{self._base}/state", state.as_json(), retain=True)
 
     def publish_availability(self, val):
         self._raw(f"{self._base}/availability", val, retain=True)
@@ -124,17 +132,22 @@ class FloChargePoint(CP):
         self.bridge = bridge
 
     def _pub(self):
+        self.bridge.touch_seen()
         self.bridge.mqtt.publish_state(self.bridge.state)
 
     @on(Action.boot_notification)
     async def on_boot(self, charge_point_vendor, charge_point_model, **kw):
         log.info(f"Boot: {charge_point_vendor} {charge_point_model} {kw}")
+        self._pub()
         return call_result.BootNotification(
             current_time=_now(), interval=self.bridge.cfg.HEARTBEAT_INTERVAL,
             status=RegistrationStatus.accepted)
 
     @on(Action.heartbeat)
     async def on_heartbeat(self):
+        # Republish state on every heartbeat so HA gets a fresh reading even when idle,
+        # and last_seen/connected stay current.
+        self._pub()
         return call_result.Heartbeat(current_time=_now())
 
     @on(Action.status_notification)
@@ -251,15 +264,35 @@ class Bridge:
         if self.loop:
             asyncio.run_coroutine_threadsafe(coro, self.loop)
 
+    def touch_seen(self):
+        """Mark the charger as alive (called on every inbound OCPP message)."""
+        self.state.connected = True
+        self.state.last_seen = _now()
+        self.state._last_seen_mono = time.monotonic()
+
+    async def _watchdog(self):
+        """If the charger goes silent past STALE_AFTER, flag it offline in HA."""
+        while True:
+            await asyncio.sleep(20)
+            s = self.state
+            if s.connected and (time.monotonic() - s._last_seen_mono) > STALE_AFTER:
+                log.warning("Charger silent > %ss — marking Offline", STALE_AFTER)
+                s.connected = False
+                s.status = "Offline"
+                self.mqtt.publish_state(s)
+
     async def _on_connect(self, websocket):
         path = websocket.request.path
         cp_id = path.strip("/") or "flo"
         log.info(f"Charger connected: {cp_id}")
         self.cp = FloChargePoint(cp_id, websocket, self)
+        self.touch_seen()
+        self.mqtt.publish_state(self.state)
         try:
             await self.cp.start()
         except websockets.exceptions.ConnectionClosed:
             log.info("Charger disconnected")
+            self.state.connected = False
             self.state.status = "Offline"
             self.mqtt.publish_state(self.state)
 
@@ -268,6 +301,7 @@ class Bridge:
                             format="%(asctime)s %(levelname)s %(name)s: %(message)s")
         self.loop = asyncio.get_running_loop()
         self.mqtt.connect()
+        asyncio.ensure_future(self._watchdog())
         log.info(f"OCPP CSMS listening ws://{self.cfg.OCPP_HOST}:{self.cfg.OCPP_PORT}")
         async with websockets.serve(self._on_connect, self.cfg.OCPP_HOST, self.cfg.OCPP_PORT,
                                     subprotocols=["ocpp1.6"]):

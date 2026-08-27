@@ -62,6 +62,8 @@ def entities(cfg):
                "total_increasing"),  # lifetime meter -> HA Energy dashboard
         binary("plugged", "Plugged In", "plugged", "plug"),
         binary("charging", "Charging", "charging", "battery_charging"),
+        binary("connected", "OCPP Connected", "connected", "connectivity", "mdi:lan-connect"),
+        sensor("last_seen", "Last Seen", "last_seen", dclass="timestamp"),
         # --- controls ---
         # Charge Lock: on = block charging (OCPP auth-rejection). Verify honored on hardware.
         ("switch", "charge_lock", {

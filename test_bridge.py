@@ -39,6 +39,8 @@ async def main():
         await sim.boot()
         await asyncio.sleep(0.2)
         results.append(check("status Available after boot", bridge.state.status == "Available"))
+        results.append(check("connected True after boot", bridge.state.connected is True))
+        results.append(check("last_seen set after boot", bridge.state.last_seen is not None))
         results.append(check("not plugged after boot", bridge.state.status not in sim_flo.__dict__ and
                              "false" == json.loads(bridge.state.as_json())["plugged"]))
 
