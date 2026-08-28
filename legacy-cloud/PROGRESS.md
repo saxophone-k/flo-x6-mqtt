@@ -33,7 +33,7 @@ Image : ghcr.io/saxophone-k/flo-x6-mqtt:latest (amd64 + arm64)
 
 - SSL pinning iOS contourné → APK patché avec apk-mitm
 - Émulateur Android Pixel 4 sur Windows (8-16 Go RAM)
-- Station UID : 600a3f7d-30ba-4d67-bd4a-8d72e6286666
+- Station UID : YOUR-STATION-UID
 - Modèle : FLO Home X6, firmware 3.0.0, 48A max
 - Body start session confirmé : {"evseId":"1"}
 - Endpoint bonus découvert : fast-status-update

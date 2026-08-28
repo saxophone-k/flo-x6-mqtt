@@ -8,7 +8,7 @@ Dernière mise à jour : 2026-05-17
 
 Un seul device "Flo X6" regroupant toutes les entités :
 - **Nom** : Flo Home X6 (ou le surnom configuré dans l'app)
-- **Identifiant unique** : chargingStationUid (600a3f7d-...)
+- **Identifiant unique** : chargingStationUid (YOUR-STATION-UID)
 - **Fabricant** : flo
 - **Modèle** : FLO Home X6
 - **Version firmware** : 3.0.0

@@ -12,7 +12,7 @@ trigger:
     to: "on"
 condition: []
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "🔌 EV Charger"
       message: "Vehicle plugged in."
@@ -31,7 +31,7 @@ trigger:
     to: "off"
 condition: []
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "🔌 EV Charger"
       message: >
@@ -57,7 +57,7 @@ trigger:
     to: "on"
 condition: []
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "⚡ EV Charger"
       message: >
@@ -83,7 +83,7 @@ condition:
     entity_id: binary_sensor.flo_home_x6_cable_branche
     state: "on"
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "✅ EV Charger"
       message: >
@@ -105,7 +105,7 @@ trigger:
     for: "00:03:00"
 condition: []
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "⚠️ EV Charger — Bridge Offline"
       message: >
@@ -129,7 +129,7 @@ condition:
     entity_id: binary_sensor.flo_home_x6_bridge_internet
     state: "on"
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "⚠️ EV Charger — Flo Cloud Down"
       message: "Flo API is unreachable. Internet is up — issue is on Flo's side."
@@ -146,7 +146,7 @@ trigger:
     to: "on"
 condition: []
 action:
-  - service: notify.mobile_app_nicholass_iphone_14
+  - service: notify.mobile_app_your_phone
     data:
       title: "🚨 EV Charger — EVSE Error"
       message: >

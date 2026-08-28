@@ -53,7 +53,7 @@ class SimCharger(CP):
     async def boot(self):
         await self.call(call.BootNotification(
             charge_point_vendor="flo", charge_point_model="FLO Home X6",
-            charge_point_serial_number="H5301CJ", firmware_version="3.1.7"))
+            charge_point_serial_number="H0000XX", firmware_version="3.1.7"))
         await self._st(ChargePointStatus.available, connector=0)
         await self._st(ChargePointStatus.available, connector=1)
 

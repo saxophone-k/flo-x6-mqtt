@@ -7,7 +7,7 @@ services:
     environment:
       - FLO_USERNAME=your@email.com
       - FLO_PASSWORD=yourpassword
-      - HASS_MQTT_HOST=192.168.10.100
+      - HASS_MQTT_HOST=192.168.1.100
       - HASS_MQTT_PORT=1883
       - HASS_MQTT_USERNAME=
       - HASS_MQTT_PASSWORD=

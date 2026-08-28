@@ -37,7 +37,7 @@ from flo_client.exceptions import FloAuthError, FloNetworkError, FloAPIError
 FLO_USERNAME   = os.environ.get("FLO_USERNAME", "")
 FLO_PASSWORD   = os.environ.get("FLO_PASSWORD", "")
 
-MQTT_HOST      = os.environ.get("HASS_MQTT_HOST", "192.168.10.100")
+MQTT_HOST      = os.environ.get("HASS_MQTT_HOST", "192.168.1.100")
 MQTT_PORT      = int(os.environ.get("HASS_MQTT_PORT", "1883"))
 MQTT_USER      = os.environ.get("HASS_MQTT_USERNAME", "")
 MQTT_PASS      = os.environ.get("HASS_MQTT_PASSWORD", "")

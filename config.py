@@ -14,7 +14,7 @@ class Config:
     HEARTBEAT_INTERVAL = int(os.getenv("FLO_HEARTBEAT_INTERVAL", "30"))
 
     # --- MQTT ---
-    MQTT_HOST = os.getenv("FLO_MQTT_HOST", "192.168.10.100")
+    MQTT_HOST = os.getenv("FLO_MQTT_HOST", "192.168.1.100")
     MQTT_PORT = int(os.getenv("FLO_MQTT_PORT", "1883"))
     MQTT_USER = os.getenv("FLO_MQTT_USER", "")
     MQTT_PASS = os.getenv("FLO_MQTT_PASS", "")

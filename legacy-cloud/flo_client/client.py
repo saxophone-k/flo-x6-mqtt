@@ -78,7 +78,7 @@ class FloX6Client:
         """
         Démarre une session de charge.
 
-        station_uid  : chargingStationUid de la borne (ex: 600a3f7d-...)
+        station_uid  : chargingStationUid de la borne (ex: YOUR-STATION-UID)
         evse_id      : identifiant EVSE, toujours "1" pour le X6
         connector_id : identifiant connecteur (optionnel selon l'APK)
         Retourne True si la commande a été acceptée.

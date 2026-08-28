@@ -201,7 +201,7 @@ To add each automation:
 1. **Settings → Automations & Scenes → + Create Automation**
 2. Three dots → **Edit in YAML**
 3. Paste one block at a time (separated by `---` in the file)
-4. Update `notify.mobile_app_nicholass_iphone_14` to match **your** notification service
+4. Update `notify.mobile_app_your_phone` to match **your** notification service
 
 > To find your notification service: **Settings → Devices & Services → Mobile App** → your device name
 
