@@ -101,6 +101,30 @@ OCPP-Connected / Last-Seen pair stay available so they can report the offline st
 
 ---
 
+## Repointing the charger (the one-time setup)
+
+Use the guided helper — **`repoint_ui.py`** opens a page in your browser; you just type your
+server's IP and click a button. Do these **in order** (steps 1–2 need internet; from step 3 on
+you'll be on the charger's own Wi-Fi, which has **no internet** — that's normal). Full detail +
+a `curl` alternative in [`REPOINT.md`](REPOINT.md).
+
+1. **Install Python 3** — macOS/Linux already have it; on Windows install from
+   [python.org](https://www.python.org/downloads/) and **tick "Add Python to PATH."**
+2. **Download `repoint_ui.py`** from this repo — do it now, while you still have internet.
+3. **Put the charger in pairing mode:** press and **hold the connector ("gun") button for 10+
+   seconds**, until the charger's own Wi-Fi **`AP_FLO_xxxx`** appears in your laptop's Wi-Fi list.
+   *(This pairing window is the only time the setup works.)*
+4. **Join `AP_FLO_xxxx`** from your laptop (password is on the box's pairing card). Your laptop
+   loses internet now — expected, you already downloaded everything.
+5. **Run it** — Windows: **double-click** `repoint_ui.py`; macOS/Linux: `python3 repoint_ui.py`.
+   Your browser opens to the setup page.
+6. **Type your server's IP**, click **Point charger at my server**, then **Finish**.
+7. The charger **automatically leaves pairing mode and stays on your home Wi-Fi** — now reporting
+   to *your* bridge (you don't reconfigure its Wi-Fi). Just **reconnect your laptop's Wi-Fi** to
+   your home network, and check Home Assistant.
+
+---
+
 ## Install
 
 Every method uses the same image + the same env vars; only your broker details change.
