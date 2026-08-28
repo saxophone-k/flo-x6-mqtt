@@ -99,6 +99,11 @@ async def main():
         results.append(check("StartTransaction BLOCKED while locked",
                              r.id_tag_info["status"] == "Blocked"))
 
+        # bridge asks for a fresh status ~2s after connect (clears stale value on reconnect)
+        await asyncio.sleep(2.4)
+        results.append(check("status refresh (TriggerMessage) requested on connect",
+                             sim.trigger_requested == "StatusNotification"))
+
         task.cancel()
 
     server.close()

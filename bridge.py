@@ -12,7 +12,8 @@ import time
 
 import websockets
 from ocpp.v16 import ChargePoint as CP, call, call_result
-from ocpp.v16.enums import Action, RegistrationStatus, AuthorizationStatus, RemoteStartStopStatus
+from ocpp.v16.enums import (Action, RegistrationStatus, AuthorizationStatus,
+                            RemoteStartStopStatus, MessageTrigger)
 from ocpp.routing import on
 
 try:
@@ -265,6 +266,16 @@ class FloChargePoint(CP):
         except Exception as e:
             log.warning(f"RemoteStop failed (charger unreachable?): {e}")
 
+    async def request_status_refresh(self):
+        """Ask the charger to re-send its connector status (clears a stale value after a
+        reconnect). Best-effort — the X6 may not implement RemoteTrigger; that's fine."""
+        try:
+            r = await self.call(call.TriggerMessage(
+                requested_message=MessageTrigger.status_notification))
+            log.info(f"TriggerMessage(StatusNotification) -> {getattr(r, 'status', '?')}")
+        except Exception as e:
+            log.info(f"TriggerMessage not supported / failed (ok): {e}")
+
     async def remote_get_config(self):
         """Read all OCPP config keys off the charger -> log + publish to MQTT (diagnostics)."""
         try:
@@ -329,6 +340,12 @@ class Bridge:
         if not was:  # transition offline->online: flip HA availability
             self.mqtt.publish_charger_avail(True)
 
+    async def _refresh_status_soon(self, cp):
+        """A moment after (re)connect, ask the charger to re-send its status."""
+        await asyncio.sleep(2)
+        if self.cp is cp:
+            await cp.request_status_refresh()
+
     async def _watchdog(self):
         """If the charger goes silent past STALE_AFTER, flag it offline in HA."""
         while True:
@@ -336,10 +353,12 @@ class Bridge:
             try:
                 s = self.state
                 if s.connected and (time.monotonic() - s._last_seen_mono) > STALE_AFTER:
-                    log.warning("Charger silent > %ss — marking Offline", STALE_AFTER)
+                    log.warning("Charger silent > %ss — offline", STALE_AFTER)
                     s.connected = False
-                    s.status = "Offline"
-                    self.mqtt.publish_charger_avail(False)  # -> telemetry UNAVAILABLE in HA
+                    # Don't fake a "Offline" connector status — the charger-availability
+                    # topic already makes the entities go UNAVAILABLE in HA. Keep the last
+                    # real status so it isn't a lie once the charger comes back.
+                    self.mqtt.publish_charger_avail(False)
                     self.mqtt.publish_state(s)
             except Exception as e:  # never let the safety net die
                 log.warning(f"watchdog error (continuing): {e}")
@@ -352,6 +371,9 @@ class Bridge:
         self.cp = cp
         self.touch_seen()
         self.mqtt.publish_state(self.state)
+        # After a reconnect the charger may not re-send its status on its own; ask for it
+        # so "EVSE Status" never lies (best-effort — no-op if the charger doesn't support it).
+        asyncio.ensure_future(self._refresh_status_soon(cp))
         try:
             await cp.start()
         except Exception as e:
@@ -361,8 +383,8 @@ class Bridge:
             # otherwise a fast charger reconnect would leave HA stuck "offline".
             if self.cp is cp:
                 self.state.connected = False
-                self.state.status = "Offline"
-                self.mqtt.publish_charger_avail(False)  # -> telemetry UNAVAILABLE in HA
+                # No fake "Offline" status — availability handles the unavailable display.
+                self.mqtt.publish_charger_avail(False)
                 self.mqtt.publish_state(self.state)
 
     async def run(self):

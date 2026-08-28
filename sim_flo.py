@@ -17,6 +17,7 @@ class SimCharger(CP):
         super().__init__(*a, **k)
         self.remote_started = False
         self.remote_stopped = False
+        self.trigger_requested = None
 
     @on(Action.remote_start_transaction)
     async def on_remote_start(self, id_tag, **kw):
@@ -29,6 +30,11 @@ class SimCharger(CP):
         log.info(f"<< RemoteStopTransaction tx={transaction_id}")
         self.remote_stopped = True
         return call_result.RemoteStopTransaction(status=RemoteStartStopStatus.accepted)
+
+    @on(Action.trigger_message)
+    async def on_trigger(self, requested_message, **kw):
+        self.trigger_requested = requested_message
+        return call_result.TriggerMessage(status="Accepted")
 
     @on(Action.get_configuration)
     async def on_get_config(self, key=None, **kw):

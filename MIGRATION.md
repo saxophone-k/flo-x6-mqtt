@@ -34,6 +34,17 @@ v2 is a **new MQTT device with new entities** (English IDs). Update your dashboa
 If you kept the same HA device name, the old (cloud) entities go **unavailable** once the cloud
 app is stopped — delete that stale device under Settings → Devices → MQTT.
 
+> ### ⚠ Entity-ID collision while both apps run
+> If v1 and v2 are up at the same time and share an entity name, HA suffixes the newer one. The
+> one to watch is **Charge Lock** (both versions have it), so your v2 switch may land as
+> **`switch.<device>_charge_lock_2`** rather than `..._charge_lock`. After you stop and delete
+> the cloud device, you can rename it back to the clean id: Settings → Devices → the entity →
+> ⚙ → **Entity ID**. (Most other entities don't collide — v1's telemetry used different names.)
+>
+> Also note the naming: HA derives entity ids from the entity *name*, so **OCPP Connected**
+> becomes **`binary_sensor.<device>_ocpp_connected`** (not `..._connected`). If a dashboard says
+> "entity not found," check the real id in **Developer Tools → States** (filter your device).
+
 ## Rollback to cloud
 
 Re-pair the charger with the **FLO app** (it re-provisions the original cloud OCPP config), and
