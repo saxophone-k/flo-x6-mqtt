@@ -12,19 +12,23 @@ uses). It's reversible — re-pair with the FLO app to restore the cloud config.
 
 ---
 
-## The easy way — the guided helper (recommended)
+## The easy way — the setup UI (recommended)
 
-Run **`repoint_tool.py`** and just follow the prompts — it walks you through putting the charger
-in setup mode and joining its Wi-Fi, then does the rest with confirmations and clear error
-messages. No commands to type.
+**You need Python 3.** Most Macs/Linux already have it; on Windows install it from
+[python.org](https://www.python.org/downloads/) (tick *"Add Python to PATH"*).
 
+Download **`repoint_ui.py`** from this repo and run it:
 ```bash
-python repoint_tool.py
+python repoint_ui.py      # Windows
+python3 repoint_ui.py     # macOS / Linux
 ```
-*(No dependencies — any Python 3 works. A double-click packaged version may be attached to the
-[Releases](../../releases) page.)*
+Your browser opens to a small local page that shows what the charger is currently pointed at
+(FLO cloud or your server). Type your server's IP, click **Point charger at my server**, and
+follow the on-screen steps. There's also a **Restore FLO cloud** option (see reselling, below).
+When it finishes, the charger reconnects to your Wi-Fi and appears in Home Assistant.
 
-That's it. When it finishes, the charger reconnects to your Wi-Fi and shows up in Home Assistant.
+*(It runs a tiny local web server on your own computer — the browser talks to that, and it relays
+to the charger. Nothing gets installed; just close the window when you're done.)*
 
 ---
 
