@@ -1,39 +1,37 @@
 # flo-x6-mqtt
 
-**Local control of a FLO Home X6 EV charger through Home Assistant — no FLO cloud.**
+** 100% local control of a FLO Home X6 EV charger through Home Assistant — no FLO cloud.**
 
-The charger speaks **OCPP 1.6** to a tiny local server (this bridge) instead of FLO's cloud.
+The charger speaks **OCPP 1.6** to a tiny local server that you build (this bridge), instead of FLO's cloud.
 The bridge translates OCPP into MQTT with Home Assistant discovery, and HA commands back into
 OCPP. Once set up you can WAN-block the charger entirely: it keeps charging and stays fully
 controllable from HA, with nothing leaving your LAN.
 
 ```
   EV charger ──OCPP 1.6 (ws)──▶ flo-x6-mqtt ──MQTT──▶ Mosquitto ──▶ Home Assistant
-   (192.168.x.x)                (this bridge)                        (device + entities)
+                               (this bridge)                        (device + entities)
 ```
 
 > ## ⚠ v2 is a complete redesign (breaking change from v1)
-> **v1** was a *cloud* bridge — it impersonated the FLO app against `emobility.flo.ca`. It still
+> **v1** was a *cloud* bridge — it impersonated the FLO mobile app against `emobility.flo.ca`. It still
 > works but depends on FLO's cloud. **v2 (this)** is **local**: the charger connects directly to
-> the bridge over OCPP, zero cloud. They are not compatible — v2 requires a one-time **repoint**
+> the bridge over OCPP, zero cloud. They are not compatible — v2 requires a one-time **reconfiguration**
 > of the charger (below). The v1 cloud bridge is preserved under [`legacy-cloud/`](legacy-cloud/).
 > See [`MIGRATION.md`](MIGRATION.md).
 
 > ## Disclaimer
 > This is an independent, reverse-engineered project. **Not affiliated with or endorsed by FLO /
-> AddÉnergie.** Use on hardware you own. No warranty.
+> AddÉnergie.**
 
-## Why this is possible (and the honest caveat)
+## How this is possible
 
-This is **not** a crack of FLO's cloud security — that part is genuinely solid (mutual-TLS with a
-per-device certificate we can't extract). Instead, it works thanks to a **small open door FLO
-left in the charger's setup procedure.**
+This works thanks to a **small open door FLO left in the charger's setup procedure.**
 
 When the charger is in Wi-Fi pairing (AP) mode, it serves a **plain, unauthenticated local
 config API** (`http://192.168.9.1/onboarding/…`) — the very same one the FLO app uses to set
 your home Wi-Fi and register the charger. One of the values that API writes is the charger's
-**OCPP server URL**, and FLO left that field wide open: no login, no signed config, no locked-in
-address. So we simply **join the setup Wi-Fi and write our own server's address** where FLO's
+**OCPP server URL** that points to the FLO servers, and FLO left that field wide open and editable: no login, no signed config, no locked-in
+address. So we simply **join the setup Wi-Fi and reconfigure the charger to point to our own server's address** where FLO's
 cloud URL used to be. We're not breaking in — we walk through the same door FLO uses itself, and
 the charger happily reports to us instead. The charger even accepts a plain `ws://` OCPP URL, so
 there's nothing to defeat.
@@ -42,7 +40,7 @@ there's nothing to defeat.
 > adding authentication to the setup API, signing the config, or hardcoding the server URL.
 > If that happens, **chargers already repointed keep working**, but new repoints might not, and
 > a forced firmware update could in principle undo an existing one. Blocking the charger's
-> internet access (the WAN-block step) is what protects an existing setup from that.
+> internet access (the WAN-block step) after finishing this project is what protects you from future enshittification.
 
 ---
 
@@ -86,46 +84,22 @@ OCPP-Connected / Last-Seen pair stay available so they can report the offline st
 | Model | Status |
 |---|---|
 | **FLO Home X6** | ✅ verified (firmware 3.1.7) |
-| FLO Home X5 / X8 | 🟡 untested — likely the same `/onboarding` API; **reports welcome** |
+| FLO Home X8 | 🟡 untested — likely the same `/onboarding` API; **reports welcome** |
 
 ---
 
 ## Quick start
 
-1. **Deploy the bridge** (pick an install option below) and point it at your MQTT broker. It
+1. **Install and deploy the bridge** (pick an install option below) and point it at your MQTT broker. It
    listens for the charger on **`ws://<host>:9000`**. The HA device appears immediately (entities
    *unavailable* until the charger connects).
 2. **Repoint the charger** to `ws://<host>:9000/flo` — see [`REPOINT.md`](REPOINT.md). One-time,
-   ~10 minutes, no soldering.
-3. The charger connects; entities come alive in HA. Optionally **WAN-block** the charger.
+   ~10 minutes, no soldering or hardware hacks required.
+3. The charger connects; entities come alive in HA. Optional but highly recommended : **WAN-block** the charger (block it from connecting to the internet.
 
 ---
 
-## Repointing the charger (the one-time setup)
-
-Use the guided helper — **`repoint_ui.py`** opens a page in your browser; you just type your
-server's IP and click a button. Do these **in order** (steps 1–2 need internet; from step 3 on
-you'll be on the charger's own Wi-Fi, which has **no internet** — that's normal). Full detail +
-a `curl` alternative in [`REPOINT.md`](REPOINT.md).
-
-1. **Install Python 3** — macOS/Linux already have it; on Windows install from
-   [python.org](https://www.python.org/downloads/) and **tick "Add Python to PATH."**
-2. **Download `repoint_ui.py`** from this repo — do it now, while you still have internet.
-3. **Put the charger in pairing mode:** press and **hold the connector ("gun") button for 10+
-   seconds**, until the charger's own Wi-Fi **`AP_FLO_xxxx`** appears in your laptop's Wi-Fi list.
-   *(This pairing window is the only time the setup works.)*
-4. **Join `AP_FLO_xxxx`** from your laptop (password is on the box's pairing card). Your laptop
-   loses internet now — expected, you already downloaded everything.
-5. **Run it** — Windows: **double-click** `repoint_ui.py`; macOS/Linux: `python3 repoint_ui.py`.
-   Your browser opens to the setup page.
-6. **Type your server's IP**, click **Point charger at my server**, then **Finish**.
-7. The charger **automatically leaves pairing mode and stays on your home Wi-Fi** — now reporting
-   to *your* bridge (you don't reconfigure its Wi-Fi). Just **reconnect your laptop's Wi-Fi** to
-   your home network, and check Home Assistant.
-
----
-
-## Install
+## 1- Install and deploy the bridge
 
 Every method uses the same image + the same env vars; only your broker details change.
 
@@ -140,11 +114,14 @@ docker run -d --name flo-x6-mqtt --restart unless-stopped \
 Edit `.env`, then `docker compose up -d` (see [`docker-compose.yml`](docker-compose.yml)).
 
 ### TrueNAS SCALE (custom app)
-- Image `ghcr.io/saxophone-k/flo-x6-mqtt:latest`
-- **Host networking** (so the charger can reach the bridge on the host's IP:9000)
+- Image `ghcr.io/saxophone-k/flo-x6-mqtt`
+- Tag : `latest`
+- Check the ** Host networking** box (so the charger can reach the bridge on the host's IP:9000)
+- Pull Policy **Always pull an image**
 - Restart policy **Unless Stopped**
-- Env vars (below). No storage needed — the bridge is stateless.
-- **If your charger is on an isolated IoT VLAN:** give the host an interface on that VLAN and
+- Env vars (see below).
+- No storage needed — the bridge is stateless.
+- **If your charger is on an isolated VLAN:** give the host an interface on that VLAN and
   run the app host-networked there, so the charger reaches the bridge **same-VLAN** (no ACL).
   Otherwise add a firewall permit `charger → host:9000`.
 
@@ -156,11 +133,11 @@ env vars as add-on options.
 
 ## Configuration (environment variables)
 
-| Variable | Default | |
+| Variable | Value | Notes |
 |---|---|---|
-| `FLO_MQTT_HOST` | `192.168.10.100` | your broker |
-| `FLO_MQTT_PORT` | `1883` | |
-| `FLO_MQTT_USER` / `FLO_MQTT_PASS` | *(empty)* | broker auth, if any |
+| `FLO_MQTT_HOST` | `192.xx.xx.xx` | replace with your MQTT broker's IP |
+| `FLO_MQTT_PORT` | `1883` | or your MQTT broker's port if different |
+| `FLO_MQTT_USER` / `FLO_MQTT_PASS` | *(empty)* | put your broker auth, if any |
 | `FLO_OCPP_PORT` | `9000` | port the charger connects to |
 | `FLO_DEVICE_NAME` / `FLO_DEVICE_ID` | `Flo Home X6` / `flo_x6` | HA device name / slug |
 | `FLO_MQTT_PREFIX` | `flo-x6` | base MQTT topic |
@@ -173,13 +150,28 @@ env vars as add-on options.
 
 ---
 
-## WAN-blocking the charger (the whole point)
+## 2- Repoint the charger to your server/bridge
+
+This step is super important. Full details and steps are here in [`REPOINT.md`](REPOINT.md).
+tl;dr :
+1. **Install Python 3** if you don't already have it.
+2. **Download `repoint_ui.py`** from this repo.
+3. **Put the charger in pairing mode**
+4. **Join the charger's AP (`AP_FLO_xxxx`)** from your laptop (password is on the box's pairing card).
+5. **Run the repoint** — Windows: **double-click** `repoint_ui.py`; macOS/Linux: `python3 repoint_ui.py`.
+6. **Type your server's IP**, click **Point charger at my server**, then **Finish**.
+7. The charger **automatically leaves pairing mode and stays on your home Wi-Fi**.
+8. **Reconnect your laptop's Wi-Fi**.
+
+---
+
+## Blocking the charger from accessing the internet (the whole point)
 
 Once repointed, block the charger from the internet to kill the FLO cloud/EMS channels and any
-OTA. **Charging and all HA control keep working** — they're local now.
+OTA (over the air update). **Charging and all HA control keep working** — they're local now.
 
-- Rule: **deny `<charger-ip> → WAN`**. No allow rule needed for the bridge if they're same-VLAN.
-- What dies: FLO app, remote (off-LAN) access, firmware updates, cloud telemetry.
+- ACL Rule: **deny `<charger-ip> → WAN`**. No allow rule needed for the bridge if they're same-VLAN.
+- What dies: FLO app, remote (off-LAN) access, firmware updates, cloud telemetry, future enshittification risks.
 - What stays: charging, HA control, local telemetry.
 
 > ### ⚠ Known behaviour: slow reconnect while WAN-blocked
@@ -195,19 +187,6 @@ OTA. **Charging and all HA control keep working** — they're local now.
 
 ---
 
-## How it works
-
-- The charger is an **OCPP 1.6 charge point**; this bridge is the **Central System** it dials
-  into (plain `ws://` — the X6 does not require TLS for OCPP).
-- It **auto-starts** transactions (no RFID needed), so **Stop** is the everyday control.
-- Repoint uses the charger's **SoftAP setup API** (`http://192.168.9.1/onboarding/*`), served
-  only while the charger is in pairing/AP mode. The OCPP config body is **snake_case**
-  (`ocpp_url` / `ocpp_username` / `ocpp_password`) — camelCase returns HTTP 422.
-- **OCPP config get/set:** publish `get_config` / `set_config` (e.g. `WebSocketPingInterval=30`)
-  to `flo-x6/<id>/cmd/...` to read/tune the charger's OCPP settings.
-
----
-
 ## Troubleshooting
 
 - **HTTP 422 on repoint** → body must be snake_case (`ocpp_url`, not `ocppUrl`).
@@ -219,7 +198,7 @@ OTA. **Charging and all HA control keep working** — they're local now.
 - **Slow reconnect after a restart** → see the WAN-block note above.
 
 ## Contributing
-Reports from **X5 / X8** owners especially welcome (does the `/onboarding` repoint work?).
+Reports from **X8** owners especially welcome (does the `/onboarding` repoint work?).
 
 ## License
 MIT. Not affiliated with FLO / AddÉnergie.
