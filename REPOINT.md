@@ -14,21 +14,35 @@ uses). It's reversible — re-pair with the FLO app to restore the cloud config.
 
 ## The easy way — the setup UI (recommended)
 
-**You need Python 3.** Most Macs/Linux already have it; on Windows install it from
-[python.org](https://www.python.org/downloads/) (tick *"Add Python to PATH"*).
+You run one small file, **`repoint_ui.py`**, on your laptop. It opens a simple page in your
+browser where you point the charger at your server — no commands to type into the page.
 
-Download **`repoint_ui.py`** from this repo and run it:
-```bash
-python repoint_ui.py      # Windows
-python3 repoint_ui.py     # macOS / Linux
-```
-Your browser opens to a small local page that shows what the charger is currently pointed at
-(FLO cloud or your server). Type your server's IP, click **Point charger at my server**, and
-follow the on-screen steps. There's also a **Restore FLO cloud** option (see reselling, below).
-When it finishes, the charger reconnects to your Wi-Fi and appears in Home Assistant.
+### Step A — make sure you have Python 3
+- **macOS / Linux:** you almost certainly already do.
+- **Windows:** install it from **[python.org/downloads](https://www.python.org/downloads/)** — and
+  during install, **tick "Add Python to PATH"** (important).
 
-*(It runs a tiny local web server on your own computer — the browser talks to that, and it relays
-to the charger. Nothing gets installed; just close the window when you're done.)*
+### Step B — download `repoint_ui.py`
+Grab it from this repo (click the file → **Download raw**), and save it somewhere easy like your
+Desktop.
+
+### Step C — run it
+- **Windows:** **double-click `repoint_ui.py`.** A small black window opens (that's the helper
+  running — leave it open) and your **browser automatically opens** to the setup page.
+- **macOS / Linux:** open **Terminal**, go to where you saved it, and run:
+  ```bash
+  python3 repoint_ui.py
+  ```
+  Your browser opens to the setup page. (Leave the Terminal open while you use it.)
+
+> The little window / Terminal is just the helper running on your computer. You only ever look
+> at the **browser page**. Close the window when you're done — nothing gets installed.
+
+### Step D — use the page
+It shows what the charger is currently pointed at (**FLO cloud** or **your server**). Type your
+server's IP address, click **Point charger at my server**, and follow the on-screen steps. When
+it's done, the charger reconnects to your Wi-Fi and appears in Home Assistant. *(There's also a
+**Restore FLO cloud** option — see reselling, below.)*
 
 ---
 
