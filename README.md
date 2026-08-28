@@ -1,6 +1,6 @@
 # flo-x6-mqtt
 
-** 100% local control of a FLO Home X6 EV charger through Home Assistant — no FLO cloud.**
+**100% local control of a FLO Home X6 EV charger through Home Assistant — no FLO cloud.**
 
 The charger speaks **OCPP 1.6** to a tiny local server that you build (this bridge), instead of FLO's cloud.
 The bridge translates OCPP into MQTT with Home Assistant discovery, and HA commands back into
@@ -95,7 +95,7 @@ OCPP-Connected / Last-Seen pair stay available so they can report the offline st
    *unavailable* until the charger connects).
 2. **Repoint the charger** to `ws://<host>:9000/flo` — see [`REPOINT.md`](REPOINT.md). One-time,
    ~10 minutes, no soldering or hardware hacks required.
-3. The charger connects; entities come alive in HA. Optional but highly recommended : **WAN-block** the charger (block it from connecting to the internet.
+3. The charger connects; entities come alive in HA. Optional but highly recommended : **WAN-block** the charger (block it from connecting to the internet).
 
 ---
 
