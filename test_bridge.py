@@ -104,6 +104,24 @@ async def main():
         results.append(check("status refresh (TriggerMessage) requested on connect",
                              sim.trigger_requested == "StatusNotification"))
 
+        # broker restart while the charger stays connected (seen live 2026-10-27): on_connect
+        # tells HA "charger offline" as a fail-safe — the next charger message must undo it
+        told = []
+        publish = bridge.mqtt.publish_charger_avail
+        bridge.mqtt.publish_charger_avail = lambda online: (told.append(online), publish(online))
+
+        class _StubClient:
+            def subscribe(self, topic):
+                pass
+
+        bridge.mqtt._on_connect(_StubClient(), None, None, 0)
+        results.append(check("broker reconnect tells HA charger offline (fail-safe)",
+                             told == [False]))
+        await sim.call(sim_flo.call.Heartbeat())
+        await asyncio.sleep(0.1)
+        results.append(check("next heartbeat tells HA charger online again",
+                             told[-1:] == [True]))
+
         task.cancel()
 
     server.close()

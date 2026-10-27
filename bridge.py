@@ -78,6 +78,7 @@ class MqttPublisher:
         self.client = None
         self._base = ha_entities.base_topic(cfg)
         self._charger_avail_topic = ha_entities.charger_avail_topic(cfg)
+        self.charger_avail = None  # what HA was last told: None (never) / True / False
 
     def connect(self):
         if self.cfg.DRY_RUN or mqtt is None:
@@ -111,6 +112,7 @@ class MqttPublisher:
         self.publish_charger_avail(False)
 
     def publish_charger_avail(self, online):
+        self.charger_avail = online
         self._raw(self._charger_avail_topic, "online" if online else "offline", retain=True)
 
     def _on_message(self, client, userdata, msg):
@@ -337,7 +339,9 @@ class Bridge:
         self.state.connected = True
         self.state.last_seen = _now()
         self.state._last_seen_mono = time.monotonic()
-        if not was:  # transition offline->online: flip HA availability
+        # Flip HA to online whenever it was last told otherwise — not only on a charger
+        # reconnect: a broker reconnect also publishes "offline" while the charger stays up.
+        if not was or not self.mqtt.charger_avail:
             self.mqtt.publish_charger_avail(True)
 
     async def _refresh_status_soon(self, cp):
